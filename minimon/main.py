@@ -31,6 +31,12 @@ FACING_CYCLE = {"down": "left", "left": "up", "up": "right", "right": "down"}
 # Tiles that show ? bubble when faced
 INTERACTABLE_TILES = {TILE_GYM, TILE_SHOP, TILE_HEAL, TILE_SIGN, TILE_DOOR}
 
+# On-screen D-pad
+DPAD_CENTER_X = 65
+DPAD_CENTER_Y = 400
+DPAD_RADIUS = 32
+DPAD_BTN_SIZE = 26
+
 
 class Game:
     def __init__(self):
@@ -91,7 +97,7 @@ class Game:
                     self._on_scroll(event.y)
                     self.scroll_cooldown = 0.15
             elif event.type == pygame.MOUSEBUTTONDOWN:
-                self._on_click(event.button)
+                self._on_click(event.button, event.pos)
 
     def _on_key(self, key):
         if self.state == STATE_TITLE:
@@ -133,7 +139,7 @@ class Game:
         elif self.state == STATE_INTRO:
             self._advance_intro()
         elif self.state == STATE_OW:
-            self.player.facing = FACING_CYCLE.get(self.player.facing, "down")
+            pass
         elif self.state == STATE_BATTLE:
             self._handle_battle_scroll(direction)
         elif self.state == STATE_MENU:
@@ -156,7 +162,7 @@ class Game:
             self.__init__()
             self.state = STATE_TITLE
 
-    def _on_click(self, button):
+    def _on_click(self, button, pos=(0, 0)):
         if self.state == STATE_TITLE:
             self.state = STATE_INTRO
             self.intro_step = 0
@@ -164,8 +170,15 @@ class Game:
             self._advance_intro()
         elif self.state == STATE_OW:
             if button == 1:
-                info = self._get_interactable_info()
-                if info:
+                dp_dir = self._get_dp_direction(*pos)
+                if dp_dir:
+                    dx, dy = 0, 0
+                    if dp_dir == "up": dy = -1
+                    elif dp_dir == "down": dy = 1
+                    elif dp_dir == "left": dx = -1
+                    elif dp_dir == "right": dx = 1
+                    self._move_player(dx, dy, dp_dir)
+                elif self._get_interactable_info():
                     self._interact()
                 else:
                     dx, dy = 0, 0
@@ -375,6 +388,19 @@ class Game:
         if tile in INTERACTABLE_TILES:
             return ("tile", fx, fy)
         return None
+
+    def _get_dp_direction(self, mx, my):
+        dx = mx - DPAD_CENTER_X
+        dy = my - DPAD_CENTER_Y
+        dist = math.sqrt(dx * dx + dy * dy)
+        if dist > DPAD_RADIUS:
+            return None
+        if dist < 8:
+            return None
+        if abs(dx) > abs(dy):
+            return "right" if dx > 0 else "left"
+        else:
+            return "down" if dy > 0 else "up"
 
     def _interact_npc(self, npc):
         if npc["type"] == "trainer" and not npc.get("defeated", False):
@@ -1039,6 +1065,7 @@ class Game:
                 bx = tx * TILE_SIZE + TILE_SIZE // 2
                 by = ty * TILE_SIZE - 12
                 self.renderer.draw_interact_bubble(bx, by, self.time_offset)
+            self.renderer.draw_dpad(DPAD_CENTER_X, DPAD_CENTER_Y, DPAD_RADIUS, DPAD_BTN_SIZE)
 
     def _render_battle(self):
         bs = self.battle_state

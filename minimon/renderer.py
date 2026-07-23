@@ -543,6 +543,23 @@ class Renderer:
                                                        (bx + 3, by + bubble_h // 2 - 2),
                                                        (bx, by + bubble_h // 2 + 4)], 1)
 
+    def draw_dpad(self, center_x, center_y, radius, btn_size):
+        dpad_surf = pygame.Surface((radius * 2 + 10, radius * 2 + 10), pygame.SRCALPHA)
+        cx = radius + 5
+        cy = radius + 5
+        color_fill = (*COLOR_WHITE, 64)
+        color_border = (*COLOR_LIGHT_GRAY, 100)
+        dirs = [
+            (0, -1, cx - btn_size // 2, cy - radius - 2, btn_size, btn_size),
+            (0, 1, cx - btn_size // 2, cy + radius - btn_size + 2, btn_size, btn_size),
+            (-1, 0, cx - radius - 2, cy - btn_size // 2, btn_size, btn_size),
+            (1, 0, cx + radius - btn_size + 2, cy - btn_size // 2, btn_size, btn_size),
+        ]
+        for _, _, rx, ry, rw, rh in dirs:
+            pygame.draw.rect(dpad_surf, color_fill, (rx, ry, rw, rh), border_radius=4)
+            pygame.draw.rect(dpad_surf, color_border, (rx, ry, rw, rh), 1, border_radius=4)
+        self.screen.blit(dpad_surf, (center_x - radius - 5, center_y - radius - 5))
+
     def _wrap_text(self, text, max_width):
         words = text.split(" ")
         lines = []
