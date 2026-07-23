@@ -186,14 +186,20 @@ def calculate_damage(attacker, defender, move_data):
 
     stab = 1.5 if move.type in attacker.types else 1.0
     critical = 1.0
-    if random.random() < 0.0625:
+    crit_chance = 0.0625
+    if move.effect == EFFECT_CRIT_BOOST:
+        crit_chance = 0.25
+    if random.random() < crit_chance:
         critical = 1.5
 
     random_factor = random.uniform(0.85, 1.0)
     stage_mod = 1.0
 
     total = int(base_damage * stab * effectiveness * critical * random_factor * stage_mod)
-    total = max(1, total)
+    if effectiveness == 0:
+        total = 0
+    else:
+        total = max(1, total)
 
     desc = ""
     if effectiveness > 1:
@@ -248,6 +254,9 @@ def apply_status_effect(attacker, defender, move):
     if move.effect == EFFECT_SATK_DOWN:
         defender.stat_stages[STAT_SATK] = max(-6, defender.stat_stages[STAT_SATK] - 1)
         return "satk_down"
+    if move.effect == EFFECT_SDEF_DOWN:
+        defender.stat_stages[STAT_SDEF] = max(-6, defender.stat_stages[STAT_SDEF] - 1)
+        return "sdef_down"
 
     if move.effect in (EFFECT_BURN, EFFECT_FREEZE, EFFECT_PARALYZE, EFFECT_POISON, EFFECT_SLEEP):
         if defender.status is None and random.randint(1, 100) <= move.effect_chance:
@@ -263,6 +272,7 @@ def apply_status_effect(attacker, defender, move):
 
     if move.effect == EFFECT_FLINCH:
         if random.randint(1, 100) <= move.effect_chance:
+            defender.flinched_this_turn = True
             return "flinch"
         return None
 
@@ -424,6 +434,9 @@ class BattleState:
 
         log = []
 
+        p.flinched_this_turn = False
+        e.flinched_this_turn = False
+
         for who in (first, second):
             attacker = p if who == "player" else e
             defender = e if who == "player" else p
@@ -433,7 +446,12 @@ class BattleState:
             if not attacker.is_alive() or not defender.is_alive():
                 continue
 
-            if attacker.status == EFFECT_PARALYZED:
+            if hasattr(attacker, 'flinched_this_turn') and attacker.flinched_this_turn:
+                attacker.flinched_this_turn = False
+                log.append(f"{attacker.name} flinched and couldn't move!")
+                continue
+
+            if attacker.status == EFFECT_PARALYZE:
                 if random.random() < 0.25:
                     log.append(f"{attacker.name} is fully paralyzed!")
                     continue
@@ -447,6 +465,7 @@ class BattleState:
                     continue
                 else:
                     log.append(f"{attacker.name} snapped out of confusion!")
+                    attacker.confusion_turns = 0
 
             if attacker.status == EFFECT_SLEEP:
                 if random.random() < 0.5:
@@ -455,6 +474,14 @@ class BattleState:
                 else:
                     attacker.status = None
                     log.append(f"{attacker.name} woke up!")
+
+            if attacker.status == EFFECT_FREEZE:
+                if random.random() < 0.8:
+                    log.append(f"{attacker.name} is frozen solid!")
+                    continue
+                else:
+                    attacker.status = None
+                    log.append(f"{attacker.name} thawed out!")
 
             if move_data is None:
                 continue
@@ -476,6 +503,14 @@ class BattleState:
 
             if move_data.category != STATUS:
                 defender.take_damage(damage)
+                if move_data.effect == EFFECT_MULTI_HIT:
+                    hits = random.randint(2, 5)
+                    total_damage = damage
+                    for h in range(hits - 1):
+                        extra_dmg, _ = calculate_damage(attacker, defender, move_data)
+                        defender.take_damage(extra_dmg)
+                        total_damage += extra_dmg
+                    log.append(f"Hit {hits} times!")
                 eff_text = ""
                 if effect == "super_effective":
                     eff_text = " It's super effective!"
@@ -495,7 +530,9 @@ class BattleState:
                 status = apply_status_effect(attacker, defender, move_data)
                 if status and status.startswith("status_"):
                     status_name = status.replace("status_", "")
-                    log.append(f"{defender.name} was {status_name}ed!")
+                    status_words = {"burn": "burned", "freeze": "frozen", "paralyze": "paralyzed", "poison": "poisoned", "sleep": "put to sleep"}
+                    word = status_words.get(status_name, f"{status_name}ed")
+                    log.append(f"{defender.name} was {word}!")
                 elif status and "down" in status:
                     stat_name = status.replace("_down", "").upper()
                     log.append(f"{defender.name}'s {stat_name} fell!")
@@ -511,10 +548,12 @@ class BattleState:
                         stat_name = status.replace("_up", "").upper()
                         log.append(f"{attacker.name}'s {stat_name} rose!")
                     elif status == "leech_active":
-                        log.append(f"{defander.name} was seeded!")
+                        log.append(f"{defender.name} was seeded!")
                     elif status.startswith("status_"):
                         sname = status.replace("status_", "")
-                        log.append(f"{defender.name} was {sname}ed!")
+                        status_words2 = {"burn": "burned", "freeze": "frozen", "paralyze": "paralyzed", "poison": "poisoned", "sleep": "put to sleep"}
+                        word2 = status_words2.get(sname, f"{sname}ed")
+                        log.append(f"{defender.name} was {word2}!")
                     elif status == "confuse":
                         log.append(f"{defender.name} became confused!")
 
@@ -538,3 +577,17 @@ class BattleState:
 
         self.message_queue.extend(log)
         self.turn += 1
+
+        # End-of-turn status damage
+        for creature in [self.player, self.enemy]:
+            if creature and creature.is_alive() and creature.status:
+                if creature.status == EFFECT_BURN:
+                    dmg = max(1, creature.max_hp // 16)
+                    creature.take_damage(dmg)
+                    self.message_queue.append(f"{creature.name} is hurt by its burn!")
+                elif creature.status == EFFECT_POISON:
+                    dmg = max(1, creature.max_hp // 8)
+                    creature.take_damage(dmg)
+                    self.message_queue.append(f"{creature.name} is hurt by poison!")
+                if not creature.is_alive():
+                    self.message_queue.append(f"{creature.name} fainted!")

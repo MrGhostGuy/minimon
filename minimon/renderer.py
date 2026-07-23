@@ -1,6 +1,212 @@
 import pygame
 import math
 from .config import *
+from .pixel_art import draw_creature_pixel_art
+
+
+# NPC pixel art patterns (12x12 grids, 0=empty 1=highlight 2=mid 3=shadow)
+NPC_PATTERNS = {
+    "professor": [
+        "...3333....",
+        "..322223...",
+        "..321123...",
+        "..322223...",
+        "..332233...",
+        ".32222223..",
+        "3222222223.",
+        ".32222223..",
+        "..322223...",
+        "..32..23...",
+        "..32..23...",
+        "..3.....3..",
+    ],
+    "healer": [
+        "..333333...",
+        ".32222223..",
+        ".32111123..",
+        ".32222223..",
+        "..332233...",
+        ".32222223..",
+        "3222222223.",
+        "3222222223.",
+        ".32222223..",
+        "..32..23...",
+        "..32..23...",
+        "..3.....3..",
+    ],
+    "gym_leader": [
+        "...3333....",
+        "..322223...",
+        "..321123...",
+        "..322223...",
+        ".33322333..",
+        ".32222223..",
+        "3222222223.",
+        "3222222223.",
+        ".32222223..",
+        "..32..23...",
+        "..32..23...",
+        "..3.....3..",
+    ],
+    "trainer": [
+        "..333333...",
+        ".32222223..",
+        ".32211223..",
+        ".32222223..",
+        "..332233...",
+        ".32222223..",
+        "3222222223.",
+        ".32222223..",
+        "..322223...",
+        "..32..23...",
+        "..32..23...",
+        "..3.....3..",
+    ],
+    "rival": [
+        "..333333...",
+        ".32222223..",
+        ".32111123..",
+        ".32222223..",
+        "..332233...",
+        ".32222223..",
+        "3222222223.",
+        ".32222223..",
+        "..322223...",
+        "..32..23...",
+        "..32..23...",
+        "..3.....3..",
+    ],
+    "item_giver": [
+        "..333333...",
+        ".32222223..",
+        ".32111123..",
+        ".32222223..",
+        "..332233...",
+        ".32222223..",
+        "3222222223.",
+        ".32222223..",
+        "..322223...",
+        "..32..23...",
+        "..32..23...",
+        "..3.....3..",
+    ],
+    "trade_npc": [
+        "..333333...",
+        ".32222223..",
+        ".32111123..",
+        ".32222223..",
+        "..332233...",
+        ".32222223..",
+        "3222222223.",
+        ".32222223..",
+        "..322223...",
+        "..32..23...",
+        "..32..23...",
+        "..3.....3..",
+    ],
+    "talker": [
+        "..333333...",
+        ".32222223..",
+        ".32111123..",
+        ".32222223..",
+        "..332233...",
+        ".32222223..",
+        "3222222223.",
+        ".32222223..",
+        "..322223...",
+        "..32..23...",
+        "..32..23...",
+        "..3.....3..",
+    ],
+    "giver": [
+        "..333333...",
+        ".32222223..",
+        ".32111123..",
+        ".32222223..",
+        "..332233...",
+        ".32222223..",
+        "3222222223.",
+        ".32222223..",
+        "..322223...",
+        "..32..23...",
+        "..32..23...",
+        "..3.....3..",
+    ],
+    "evil_grunt": [
+        "..333333...",
+        ".32222223..",
+        ".32333323..",
+        ".32222223..",
+        "..332233...",
+        ".32222223..",
+        "3222222223.",
+        ".32222223..",
+        "..322223...",
+        "..32..23...",
+        "..32..23...",
+        "..3.....3..",
+    ],
+    "evil_boss": [
+        ".333333333.",
+        "32222222223",
+        "32333333323",
+        "32222222223",
+        ".333223333.",
+        "32222222223",
+        "32222222223",
+        "32222222223",
+        ".322222223.",
+        "..32..323..",
+        "..32..323..",
+        "..3.....3..",
+    ],
+    "rival_home": [
+        "..333333...",
+        ".32222223..",
+        ".32111123..",
+        ".32222223..",
+        "..332233...",
+        ".32222223..",
+        "3222222223.",
+        ".32222223..",
+        "..322223...",
+        "..32..23...",
+        "..32..23...",
+        "..3.....3..",
+    ],
+}
+
+NPC_COLORS = {
+    "professor": ((255, 255, 255), (200, 230, 200), (80, 140, 80), (30, 50, 30)),
+    "healer": ((255, 255, 255), (255, 220, 230), (220, 120, 150), (60, 30, 40)),
+    "gym_leader": ((255, 255, 255), (255, 230, 100), (200, 160, 30), (50, 40, 10)),
+    "trainer": ((255, 255, 255), (220, 200, 180), (160, 80, 80), (40, 20, 20)),
+    "rival": ((255, 255, 255), (180, 200, 240), (80, 120, 180), (20, 30, 50)),
+    "item_giver": ((255, 255, 255), (220, 200, 180), (160, 140, 100), (40, 35, 25)),
+    "trade_npc": ((255, 255, 255), (220, 200, 180), (160, 140, 100), (40, 35, 25)),
+    "talker": ((255, 255, 255), (200, 180, 160), (140, 120, 100), (35, 30, 25)),
+    "giver": ((255, 255, 255), (200, 220, 180), (100, 140, 80), (30, 40, 25)),
+    "evil_grunt": ((200, 200, 210), (100, 80, 120), (50, 30, 70), (10, 5, 15)),
+    "evil_boss": ((220, 220, 230), (80, 60, 100), (40, 20, 60), (10, 5, 15)),
+    "rival_home": ((255, 255, 255), (220, 200, 180), (160, 140, 100), (40, 35, 25)),
+}
+
+# Player overworld sprite (12x12)
+PLAYER_SPRITE = [
+    "...3333....",
+    "..322223...",
+    "..321123...",
+    "..322223...",
+    "..332233...",
+    ".32222223..",
+    "3222222223.",
+    ".32222223..",
+    "..322223...",
+    "..32..23...",
+    "..32..23...",
+    "..3.....3..",
+]
+PLAYER_PALETTE = ((255, 255, 255), (100, 180, 240), (50, 100, 180), (20, 40, 80))
 
 
 class Renderer:
@@ -49,37 +255,58 @@ class Renderer:
             self.draw_rect(x, y, fill_w, h, color)
 
     def draw_creature_sprite(self, x, y, size, dex_num, level, is_enemy=False):
-        from .creatures import CREATURE_DB
-        template = CREATURE_DB.get(dex_num, None)
-        if not template:
-            color = (200, 200, 200)
-        else:
-            color = template.color
+        draw_creature_pixel_art(self.screen, x, y, size, dex_num, is_enemy)
+        self.draw_text(x + size // 2, y + size + 2, f"Lv.{level}", COLOR_WHITE, self.font_small, center=True)
 
-        cx = x + size // 2
-        cy = y + size // 2
+    def draw_creature_sprite_no_label(self, x, y, size, dex_num, is_enemy=False):
+        draw_creature_pixel_art(self.screen, x, y, size, dex_num, is_enemy)
 
-        if template:
-            body_w = int(size * 0.7)
-            body_h = int(size * 0.6)
-            body_x = cx - body_w // 2
-            body_y = cy - body_h // 4
-            pygame.draw.ellipse(self.screen, color, (body_x, body_y, body_w, body_h))
+    def _draw_npc_sprite(self, x, y, size, npc_type):
+        pattern = NPC_PATTERNS.get(npc_type, NPC_PATTERNS["talker"])
+        palette = NPC_COLORS.get(npc_type, NPC_COLORS["talker"])
+        grid = [list(row) for row in pattern]
+        rows = len(grid)
+        cols = len(grid[0]) if rows > 0 else 0
+        if rows == 0 or cols == 0:
+            return
+        px_size = size / max(rows, cols)
+        for r in range(rows):
+            for c in range(cols):
+                val = grid[r][c]
+                if val == 0:
+                    continue
+                color = palette[val]
+                rx = int(x + c * px_size)
+                ry = int(y + r * px_size)
+                rw = int((c + 1) * px_size) - int(c * px_size)
+                rh = int((r + 1) * px_size) - int(r * px_size)
+                if rw < 1:
+                    rw = 1
+                if rh < 1:
+                    rh = 1
+                pygame.draw.rect(self.screen, color, (rx, ry, rw, rh))
 
-            eye_size = max(2, size // 12)
-            eye_y = cy - body_h // 6
-            if is_enemy:
-                pygame.draw.circle(self.screen, COLOR_WHITE, (cx - body_w // 4, eye_y), eye_size)
-                pygame.draw.circle(self.screen, COLOR_BLACK, (cx - body_w // 4, eye_y), eye_size // 2)
-            else:
-                pygame.draw.circle(self.screen, COLOR_WHITE, (cx + body_w // 4, eye_y), eye_size)
-                pygame.draw.circle(self.screen, COLOR_BLACK, (cx + body_w // 4, eye_y), eye_size // 2)
-
-            t_colors = [TYPE_COLORS.get(t, (128, 128, 128)) for t in template.types]
-            for i, tc in enumerate(t_colors[:2]):
-                pygame.draw.circle(self.screen, tc, (cx - 8 + i * 16, y + 4), 4)
-
-        self.draw_text(cx, y + size + 2, f"Lv.{level}", COLOR_WHITE, self.font_small, center=True)
+    def _draw_player_ow_sprite(self, x, y, size):
+        grid = [list(row) for row in PLAYER_SPRITE]
+        palette = PLAYER_PALETTE
+        rows = len(grid)
+        cols = len(grid[0]) if rows > 0 else 0
+        px_size = size / max(rows, cols)
+        for r in range(rows):
+            for c in range(cols):
+                val = grid[r][c]
+                if val == 0:
+                    continue
+                color = palette[val]
+                rx = int(x + c * px_size)
+                ry = int(y + r * px_size)
+                rw = int((c + 1) * px_size) - int(c * px_size)
+                rh = int((r + 1) * px_size) - int(r * px_size)
+                if rw < 1:
+                    rw = 1
+                if rh < 1:
+                    rh = 1
+                pygame.draw.rect(self.screen, color, (rx, ry, rw, rh))
 
     def draw_battle_scene(self, player_creature, enemy_creature, time_offset=0):
         bg_top = (60, 80, 120)
@@ -99,23 +326,26 @@ class Renderer:
 
         if enemy_creature:
             bob = math.sin(time_offset * 2) * 3
-            self.draw_creature_sprite(330, 90 + int(bob), 80, enemy_creature.dex, enemy_creature.level, is_enemy=True)
+            self.draw_creature_sprite_no_label(330, 90 + int(bob), 80, enemy_creature.dex, is_enemy=True)
             hp_ratio = enemy_creature.hp / max(1, enemy_creature.max_hp)
-            self.draw_box(300, 175, 170, 48)
+            self.draw_box(300, 175, 170, 55)
             self.draw_text(308, 178, enemy_creature.name, COLOR_WHITE, self.font_small)
             self.draw_text(308, 192, f"Lv.{enemy_creature.level}", COLOR_GRAY, self.font_small)
-            self.draw_hp_bar(308, 208, 155, 6, hp_ratio)
+            type_str = "/".join(enemy_creature.types)
+            self.draw_text(380, 192, type_str, TYPE_COLORS.get(enemy_creature.types[0], COLOR_GRAY), self.font_small)
+            self.draw_hp_bar(308, 210, 155, 6, hp_ratio)
 
         if player_creature:
             bob = math.sin(time_offset * 2 + 1) * 3
-            self.draw_creature_sprite(40, 170 + int(bob), 100, player_creature.dex, player_creature.level, is_enemy=False)
+            self.draw_creature_sprite_no_label(40, 170 + int(bob), 100, player_creature.dex, is_enemy=False)
             hp_ratio = player_creature.hp / max(1, player_creature.max_hp)
-            self.draw_box(10, 240, 200, 60)
+            self.draw_box(10, 240, 210, 65)
             self.draw_text(18, 243, player_creature.name, COLOR_WHITE, self.font)
             self.draw_text(18, 258, f"Lv.{player_creature.level}", COLOR_GRAY, self.font_small)
-            self.draw_text(100, 258, f"HP: {player_creature.hp}/{player_creature.max_hp}", COLOR_WHITE, self.font_small)
-            self.draw_hp_bar(18, 278, 185, 8, hp_ratio)
-            self.draw_text(145, 275, f"{player_creature.hp}/{player_creature.max_hp}", COLOR_WHITE, self.font_small)
+            type_str = "/".join(player_creature.types)
+            self.draw_text(90, 258, type_str, TYPE_COLORS.get(player_creature.types[0], COLOR_GRAY), self.font_small)
+            self.draw_hp_bar(18, 278, 195, 8, hp_ratio)
+            self.draw_text(140, 275, f"{player_creature.hp}/{player_creature.max_hp}", COLOR_WHITE, self.font_small)
 
     def draw_menu_cursor(self, x, y, time_offset=0):
         offset = int(math.sin(time_offset * 4) * 2)
@@ -150,27 +380,19 @@ class Renderer:
                     pygame.draw.rect(self.screen, COLOR_YELLOW, (px + 2, py + 2, TILE_SIZE - 4, TILE_SIZE - 4))
                     pygame.draw.rect(self.screen, COLOR_BLACK, (px + 4, py + 4, TILE_SIZE - 8, TILE_SIZE - 8))
                     self.draw_text(px + 6, py + 6, "G", COLOR_YELLOW, self.font_small)
+                elif tile == TILE_SIGN:
+                    pygame.draw.rect(self.screen, (139, 119, 73), (px + 6, py + 8, TILE_SIZE - 12, TILE_SIZE - 10))
+                    pygame.draw.rect(self.screen, (100, 80, 50), (px + 10, py + TILE_SIZE - 4, 4, 6))
 
         for npc in game_map.npcs:
             nx = npc["x"] * TILE_SIZE
             ny = npc["y"] * TILE_SIZE
-            if npc["type"] == "gym_leader":
-                color = COLOR_YELLOW
-            elif npc["type"] == "trainer":
-                color = COLOR_RED
-            elif npc["type"] == "professor":
-                color = COLOR_GREEN
-            else:
-                color = (200, 160, 120)
-            pygame.draw.ellipse(self.screen, color, (nx + 2, ny + 2, TILE_SIZE - 4, TILE_SIZE - 4))
-            pygame.draw.circle(self.screen, COLOR_WHITE, (nx + 8, ny + 6), 2)
-            pygame.draw.circle(self.screen, COLOR_WHITE, (nx + 14, ny + 6), 2)
+            npc_type = npc.get("type", "talker")
+            self._draw_npc_sprite(nx, ny, TILE_SIZE, npc_type)
 
         px = player_x * TILE_SIZE
         py = player_y * TILE_SIZE
-        pygame.draw.ellipse(self.screen, (50, 200, 250), (px + 3, py + 3, TILE_SIZE - 6, TILE_SIZE - 6))
-        pygame.draw.circle(self.screen, COLOR_WHITE, (px + 8, py + 7), 2)
-        pygame.draw.circle(self.screen, COLOR_WHITE, (px + 14, py + 7), 2)
+        self._draw_player_ow_sprite(px, py, TILE_SIZE)
 
     def draw_hud(self, player_state, map_name, time_offset=0):
         self.draw_box(0, 0, 480, 22, bg=(20, 20, 30))
@@ -291,23 +513,7 @@ class Renderer:
         self.draw_text(240, 400, "Rabbit R1 Edition", COLOR_GRAY, self.font_small, center=True)
 
     def draw_ow_character(self, x, y, facing, time_offset=0):
-        px = x * TILE_SIZE
-        py = y * TILE_SIZE
-        bob = math.sin(time_offset * 6) * 1
-
-        pygame.draw.ellipse(self.screen, (50, 180, 240), (px + 4, py + 6 + int(bob), TILE_SIZE - 8, TILE_SIZE - 10))
-        pygame.draw.circle(self.screen, (255, 220, 180), (px + TILE_SIZE // 2, py + 4), 6)
-        pygame.draw.circle(self.screen, COLOR_BLACK, (px + TILE_SIZE // 2, py + 4), 6, 1)
-
-        if facing == "down":
-            pygame.draw.circle(self.screen, COLOR_BLACK, (px + 9, py + 4), 1)
-            pygame.draw.circle(self.screen, COLOR_BLACK, (px + 14, py + 4), 1)
-        elif facing == "up":
-            pygame.draw.ellipse(self.screen, (80, 50, 30), (px + 7, py + 1, 9, 4))
-        elif facing == "left":
-            pygame.draw.circle(self.screen, COLOR_BLACK, (px + 8, py + 3), 1)
-        elif facing == "right":
-            pygame.draw.circle(self.screen, COLOR_BLACK, (px + 15, py + 3), 1)
+        pass
 
     def _wrap_text(self, text, max_width):
         words = text.split(" ")

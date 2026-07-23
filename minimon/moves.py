@@ -60,7 +60,6 @@ _m("tackle", "Tackle", TYPE_NORMAL, PHYSICAL, 40, 100, 35)
 _m("scratch", "Scratch", TYPE_NORMAL, PHYSICAL, 40, 100, 35)
 _m("quick_attack", "Quick Attack", TYPE_NORMAL, PHYSICAL, 40, 100, 30, priority=1, desc="Always strikes first")
 _m("bite", "Bite", TYPE_DARK, PHYSICAL, 60, 100, 25, effect=EFFECT_FLINCH, eff_chance=30)
-_m("tackle", "Tackle", TYPE_NORMAL, PHYSICAL, 40, 100, 35)
 _m("headbutt", "Headbutt", TYPE_NORMAL, PHYSICAL, 70, 100, 15, effect=EFFECT_FLINCH, eff_chance=30)
 _m("body_slam", "Body Slam", TYPE_NORMAL, PHYSICAL, 85, 100, 15, effect=EFFECT_PARALYZE, eff_chance=30)
 _m("hyper_beam", "Hyper Beam", TYPE_NORMAL, SPECIAL, 150, 90, 5)
@@ -133,7 +132,7 @@ _m("ice_shard", "Ice Shard", TYPE_ICE, PHYSICAL, 40, 100, 30, priority=1)
 _m("icy_wind", "Icy Wind", TYPE_ICE, SPECIAL, 55, 95, 15, effect=EFFECT_SPD_DOWN, eff_chance=100)
 _m("frost_bite", "Frost Bite", TYPE_ICE, PHYSICAL, 65, 95, 15, effect=EFFECT_FREEZE, eff_chance=10)
 _m("ice_beam", "Ice Beam", TYPE_ICE, SPECIAL, 90, 100, 10, effect=EFFECT_FREEZE, eff_chance=10)
-_m("blizzard", "Ice Beam", TYPE_ICE, SPECIAL, 110, 70, 5, effect=EFFECT_FREEZE, eff_chance=20)
+_m("blizzard", "Blizzard", TYPE_ICE, SPECIAL, 110, 70, 5, effect=EFFECT_FREEZE, eff_chance=20)
 _m("aurora_beam", "Aurora Beam", TYPE_ICE, SPECIAL, 65, 100, 20, effect=EFFECT_ATK_DOWN, eff_chance=10)
 
 # ===== DARK MOVES =====
@@ -170,7 +169,6 @@ _m("confuse_ray", "Confuse Ray", TYPE_WIND, STATUS, 0, 100, 10, effect=EFFECT_CO
 _m("flash", "Flash", TYPE_LIGHT, STATUS, 0, 100, 20, effect=EFFECT_SATK_DOWN, eff_chance=100)
 _m("dazzling_gleam", "Dazzling Gleam", TYPE_LIGHT, SPECIAL, 80, 100, 10)
 _m("moonlight", "Moonlight", TYPE_LIGHT, STATUS, 0, 0, 5, effect=EFFECT_RECOVER, eff_chance=100)
-_m("solar_beam", "Solar Beam", TYPE_LIGHT, SPECIAL, 120, 100, 10)
 _m("bug_buzz", "Bug Buzz", TYPE_NORMAL, SPECIAL, 80, 100, 10)
 
 # ===== DRAGON MOVES =====

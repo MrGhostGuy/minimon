@@ -111,7 +111,10 @@ class Game:
         elif self.state == STATE_SHOP:
             self._handle_shop_key(key)
         elif self.state == STATE_EVOLUTION:
-            pass
+            self._advance_dialog()
+        elif self.state == "choose_starter":
+            if key == pygame.K_ESCAPE:
+                self.state = STATE_TITLE
         elif self.state == STATE_GAME_OVER:
             if key == pygame.K_RETURN:
                 self.__init__()
@@ -139,6 +142,13 @@ class Game:
             self._advance_dialog()
         elif self.state == STATE_SHOP:
             self.shop_cursor = max(0, min(len(self.shop_items) - 1, self.shop_cursor + direction))
+        elif self.state == STATE_EVOLUTION:
+            self._advance_dialog()
+        elif self.state == "choose_starter":
+            self.cursor = max(0, min(2, self.cursor + direction))
+        elif self.state == STATE_GAME_OVER:
+            self.__init__()
+            self.state = STATE_TITLE
 
     def _on_click(self, button):
         if self.state == STATE_TITLE:
@@ -171,6 +181,14 @@ class Game:
                 self._buy_item()
             elif button == 3:
                 self.state = STATE_OW
+        elif self.state == STATE_EVOLUTION:
+            self._advance_dialog()
+        elif self.state == "choose_starter":
+            if button == 1:
+                self._choose_starter()
+        elif self.state == STATE_GAME_OVER:
+            self.__init__()
+            self.state = STATE_TITLE
 
     def _advance_intro(self):
         self.intro_step += 1
@@ -181,14 +199,12 @@ class Game:
                                 "Choose wisely - your partner will grow with you!"]
             self.state = STATE_DIALOG
             self._next_dialog()
-            self._give_starter()
         elif self.intro_step >= 2:
-            self.state = STATE_OW
+            self._give_starter()
 
     def _give_starter(self):
         starter_choices = [1, 3, 2]
         names = [CREATURE_DB[d].name for d in starter_choices]
-        self.dialog_queue = [f"Choose your partner: {names[0]}, {names[1]}, or {names[2]}"]
         self.pending_starter = starter_choices
         self.state = "choose_starter"
         self.cursor = 0
@@ -573,6 +589,34 @@ class Game:
         old_name = self.battle_state.player.name
         self.battle_state.player_idx = self.cursor
         self.battle_state.add_message(f"{old_name}, come back! Go, {target.name}!")
+        # Enemy attacks after switch (consumes player's turn)
+        bs = self.battle_state
+        e = bs.enemy
+        if e and e.is_alive() and bs.player and bs.player.is_alive():
+            e_mv = get_ai_move(e, bs.player, AI_TRAINER if bs.is_trainer else AI_WILD)
+            e_move_data = get_move(e_mv["id"])
+            if e_move_data and e_move_data.category != STATUS:
+                damage, effect = calculate_damage(e, bs.player, e_move_data)
+                bs.player.take_damage(damage)
+                if e_mv["pp"] > 0:
+                    e_mv["pp"] -= 1
+                eff_text = ""
+                if effect == "super_effective":
+                    eff_text = " It's super effective!"
+                elif effect == "not_effective":
+                    eff_text = " It's not very effective..."
+                elif effect == "no_effect":
+                    eff_text = " It had no effect!"
+                elif effect and "critical" in effect:
+                    eff_text = " A critical hit!"
+                bs.add_message(f"{e.name} used {e_move_data.name}! {eff_text}")
+                if not bs.player.is_alive():
+                    bs.add_message(f"{bs.player.name} fainted!")
+            elif e_move_data and e_move_data.category == STATUS:
+                status = apply_status_effect(e, bs.player, e_move_data)
+                if e_mv["pp"] > 0:
+                    e_mv["pp"] -= 1
+                bs.add_message(f"{e.name} used {e_move_data.name}!")
         self.battle_phase = "message"
 
     def _use_battle_item(self):
@@ -606,12 +650,18 @@ class Game:
                         bs.player_won = True
                         bs.battle_over = True
                     else:
-                        bs.enemy_idx = bs.enemy_idx
+                        bs.next_enemy()
                 else:
                     bs.add_message(f"Oh no! {bs.enemy.name} broke free! ({shakes}/4 shakes)")
         elif item_name in [ITEM_REVIVE, ITEM_FULL_REVIVE]:
-            self.player.remove_item(item_name)
-            bs.add_message(f"Used {item_name}! But it can't be used in battle...")
+            fainted = [c for c in self.player.party if not c.is_alive() and c != bs.player]
+            if fainted:
+                revive_hp = 1 if item_name == ITEM_REVIVE else fainted[0].max_hp
+                if self.player.remove_item(item_name):
+                    fainted[0].hp = revive_hp
+                    bs.add_message(f"Used {item_name}! {fainted[0].name} was revived!")
+            else:
+                bs.add_message("No fainted Minis to revive!")
             self.battle_phase = "message"
             return
         self.battle_phase = "message"
@@ -622,13 +672,13 @@ class Game:
             self.battle_state.message = msg
         else:
             if self.battle_state.battle_over:
-                if self.battle_state.player_won:
+                if self.battle_state.fled:
+                    self.state = STATE_OW
+                elif self.battle_state.player_won:
                     self._check_evolution()
                     self.state = STATE_OW
-                elif not self.battle_state.player_won:
-                    self.state = STATE_GAME_OVER
                 else:
-                    self.state = STATE_OW
+                    self.state = STATE_GAME_OVER
             else:
                 self.battle_phase = "menu"
                 self.cursor = 0
@@ -665,11 +715,11 @@ class Game:
                     return
         for c in self.player.party:
             if c.can_evolve():
-                old_name = c.name
+                old_dex = c.dex
                 c.evolve()
-                new_name = c.name
-                self.pending_evolution = (old_name, new_name)
-                self.dialog_queue = [f"{old_name} is evolving!", f"{old_name} evolved into {new_name}!"]
+                new_dex = c.dex
+                self.pending_evolution = (old_dex, new_dex)
+                self.dialog_queue = [f"{CREATURE_DB[old_dex].name} is evolving!", f"{CREATURE_DB[old_dex].name} evolved into {CREATURE_DB[new_dex].name}!"]
                 self.state = STATE_EVOLUTION
                 self._next_dialog()
                 return
@@ -750,7 +800,6 @@ class Game:
             self.player.remove_item(item_name)
             self.dialog_queue = ["All status conditions cured!"]
         elif item_name in ALL_TM_ITEMS:
-            self.player.remove_item(item_name)
             self._use_tm(item_name)
             return
         elif item_name in [ITEM_REVIVE, ITEM_FULL_REVIVE]:
@@ -773,9 +822,8 @@ class Game:
         if key == pygame.K_ESCAPE:
             if hasattr(self, 'pending_move_learn') and self.pending_move_learn:
                 creature, new_move = self.pending_move_learn
-                creature.moves[-1] = new_move
                 m = get_move(new_move["id"])
-                self.dialog_queue = [f"{creature.name} forgot a move and learned {m.name}!"]
+                self.dialog_queue = [f"{creature.name} did not learn {m.name}."]
                 self.pending_move_learn = None
                 self.state = STATE_DIALOG
                 self._next_dialog()
