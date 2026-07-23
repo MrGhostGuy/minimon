@@ -421,7 +421,7 @@ class Renderer:
         lines = self._wrap_text(text, 440)
         for i, line in enumerate(lines[:4]):
             self.draw_text(20, 375 + i * 18, line, COLOR_WHITE)
-        self.draw_text(420, 455, "v Scroll", COLOR_GRAY, self.font_small)
+        self.draw_text(420, 455, "Scroll/Click", COLOR_GRAY, self.font_small)
 
     def draw_text_box(self, lines, title=""):
         self.draw_box(10, 50, 460, 380)
@@ -523,9 +523,25 @@ class Renderer:
 
         self.draw_text(240, 380, "Scroll to Start", COLOR_WHITE, self.font, center=True)
         self.draw_text(240, 400, "Rabbit R1 Edition", COLOR_GRAY, self.font_small, center=True)
+        self.draw_text(240, 420, "Scroll = Navigate  |  Click = Select", COLOR_GRAY, self.font_small, center=True)
 
     def draw_ow_character(self, x, y, facing, time_offset=0):
         pass
+
+    def draw_interact_bubble(self, x, y, time_offset=0):
+        bob = math.sin(time_offset * 4) * 2
+        bx = x
+        by = int(y + bob)
+        bubble_w, bubble_h = 20, 18
+        pygame.draw.ellipse(self.screen, COLOR_WHITE, (bx - bubble_w // 2, by - bubble_h // 2, bubble_w, bubble_h))
+        pygame.draw.ellipse(self.screen, COLOR_BLACK, (bx - bubble_w // 2, by - bubble_h // 2, bubble_w, bubble_h), 1)
+        self.draw_text(bx, by - 6, "?", COLOR_BLACK, self.font, center=True)
+        pygame.draw.polygon(self.screen, COLOR_WHITE, [(bx - 3, by + bubble_h // 2 - 2),
+                                                       (bx + 3, by + bubble_h // 2 - 2),
+                                                       (bx, by + bubble_h // 2 + 4)])
+        pygame.draw.polygon(self.screen, COLOR_BLACK, [(bx - 3, by + bubble_h // 2 - 2),
+                                                       (bx + 3, by + bubble_h // 2 - 2),
+                                                       (bx, by + bubble_h // 2 + 4)], 1)
 
     def _wrap_text(self, text, max_width):
         words = text.split(" ")

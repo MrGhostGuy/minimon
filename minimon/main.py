@@ -25,6 +25,12 @@ STATE_SHOP = "shop"
 STATE_GAME_OVER = "gameover"
 STATE_VICTORY = "victory"
 
+FACING_ORDER = ["down", "left", "up", "right"]
+FACING_CYCLE = {"down": "left", "left": "up", "up": "right", "right": "down"}
+
+# Tiles that show ? bubble when faced
+INTERACTABLE_TILES = {TILE_GYM, TILE_SHOP, TILE_HEAL, TILE_SIGN, TILE_DOOR}
+
 
 class Game:
     def __init__(self):
@@ -127,7 +133,7 @@ class Game:
         elif self.state == STATE_INTRO:
             self._advance_intro()
         elif self.state == STATE_OW:
-            pass
+            self.player.facing = FACING_CYCLE.get(self.player.facing, "down")
         elif self.state == STATE_BATTLE:
             self._handle_battle_scroll(direction)
         elif self.state == STATE_MENU:
@@ -157,7 +163,20 @@ class Game:
         elif self.state == STATE_INTRO:
             self._advance_intro()
         elif self.state == STATE_OW:
-            self._interact()
+            if button == 1:
+                info = self._get_interactable_info()
+                if info:
+                    self._interact()
+                else:
+                    dx, dy = 0, 0
+                    if self.player.facing == "up": dy = -1
+                    elif self.player.facing == "down": dy = 1
+                    elif self.player.facing == "left": dx = -1
+                    elif self.player.facing == "right": dx = 1
+                    self._move_player(dx, dy, self.player.facing)
+            elif button == 3:
+                self.state = STATE_MENU
+                self.cursor = 0
         elif self.state == STATE_BATTLE:
             if button == 1:
                 self._handle_battle_confirm()
@@ -336,6 +355,26 @@ class Game:
                 if npc["type"] == "healer":
                     self._interact_npc(npc)
                     return
+
+    def _get_interactable_info(self):
+        if not self.current_map:
+            return None
+        fx, fy = self.player.x, self.player.y
+        if self.player.facing == "up": fy -= 1
+        elif self.player.facing == "down": fy += 1
+        elif self.player.facing == "left": fx -= 1
+        elif self.player.facing == "right": fx += 1
+
+        for npc in self.current_map.npcs:
+            if npc["x"] == fx and npc["y"] == fy:
+                return ("npc", fx, fy)
+        for sign in self.current_map.signs:
+            if sign["x"] == fx and sign["y"] == fy:
+                return ("sign", fx, fy)
+        tile = self.current_map.get_tile(fx, fy)
+        if tile in INTERACTABLE_TILES:
+            return ("tile", fx, fy)
+        return None
 
     def _interact_npc(self, npc):
         if npc["type"] == "trainer" and not npc.get("defeated", False):
@@ -987,13 +1026,19 @@ class Game:
             self.screen.fill(COLOR_BG)
             self.renderer.draw_text(240, 200, "GAME OVER", COLOR_RED, self.renderer.font_title, center=True)
             self.renderer.draw_text(240, 250, "Your Minis have fainted...", COLOR_GRAY, self.renderer.font, center=True)
-            self.renderer.draw_text(240, 300, "Press ENTER to try again", COLOR_WHITE, self.renderer.font, center=True)
+            self.renderer.draw_text(240, 300, "Click to try again", COLOR_WHITE, self.renderer.font, center=True)
 
     def _render_overworld(self):
         if self.current_map:
             self.renderer.draw_town_map(self.current_map, self.player.x, self.player.y, self.time_offset)
             self.renderer.draw_ow_character(self.player.x, self.player.y, self.player.facing, self.time_offset)
             self.renderer.draw_hud(self.player, self.current_map.name, self.time_offset)
+            info = self._get_interactable_info()
+            if info:
+                _, tx, ty = info
+                bx = tx * TILE_SIZE + TILE_SIZE // 2
+                by = ty * TILE_SIZE - 12
+                self.renderer.draw_interact_bubble(bx, by, self.time_offset)
 
     def _render_battle(self):
         bs = self.battle_state
@@ -1073,7 +1118,7 @@ class Game:
             self.renderer.draw_text(x + 75, 260, f"HP:{template.base_stats[0]} ATK:{template.base_stats[1]}", COLOR_GRAY, self.renderer.font_small, center=True)
             self.renderer.draw_text(x + 75, 275, f"DEF:{template.base_stats[2]} SPD:{template.base_stats[3]}", COLOR_GRAY, self.renderer.font_small, center=True)
 
-        self.renderer.draw_text(240, 400, "Scroll to select, Click to confirm", COLOR_GRAY, self.renderer.font_small, center=True)
+        self.renderer.draw_text(240, 400, "Scroll = Choose  |  Click = Confirm", COLOR_GRAY, self.renderer.font_small, center=True)
 
     def _render_shop(self):
         self.renderer.draw_box(10, 30, 460, 420)
