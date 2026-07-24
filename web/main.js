@@ -19,7 +19,7 @@ const R = new Renderer(ctx, SCREEN_W, SCREEN_H);
 const S_TITLE="title", S_INTRO="intro", S_OW="overworld", S_BATTLE="battle", S_MENU="menu",
 S_PARTY="party", S_BAG="bag", S_MOVES="moves", S_DIALOG="dialog", S_EVOLUTION="evolution",
 S_SHOP="shop", S_GAMEOVER="gameover", S_VICTORY="victory", S_STARTER="choose_starter",
-S_TM="tm_select", S_NAME="name_input";
+S_TM="tm_select", S_NAME="name_input", S_ENCOUNTER="encounter";
 
 const FACING = ["down","left","up","right"];
 const FACING_CYCLE = {down:"left",left:"up",up:"right",right:"down"};
@@ -33,6 +33,7 @@ let pendingNameInput = false;
 let battleState = null, battlePhase = "select";
 let shopCursor = 0;
 let nameInput = "", nameCursor = 0;
+let encounterTimer = 0, encounterData = null;
 const NAME_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
 let pokedex = {}; // { dexNum: { seen: bool, caught: bool } }
 function pokedexSee(dex) { if (!pokedex[dex]) pokedex[dex] = { seen: true, caught: false }; else pokedex[dex].seen = true; }
@@ -230,6 +231,11 @@ function executeTrade(npc) {
 
 // Battle start functions
 function startWildBattle(dex, lv) {
+  encounterData = { dex, lv };
+  encounterTimer = 0;
+  state = S_ENCOUNTER;
+}
+function startWildBattleNow(dex, lv) {
   const wild = new BattleCreature(dex, lv, null, true);
   pokedexSee(dex);
   if (!aliveParty().length) { state = S_GAMEOVER; return; }
@@ -529,6 +535,7 @@ function buyItem() {
 // === INPUT HANDLING ===
 let scrollCD = 0;
 function handleScroll(dir) {
+  if (state === S_ENCOUNTER) return;
   if (state === S_TITLE) { state = S_INTRO; advanceIntro(); }
   else if (state === S_INTRO) advanceDialog();
   else if (state === S_NAME) { nameCursor = (nameCursor + dir + 29) % 29; }
@@ -553,6 +560,7 @@ function handleScroll(dir) {
 }
 
 function handleClick(button, mx, my) {
+  if (state === S_ENCOUNTER) return;
   if (state === S_TITLE) {
     if (button === 3 && tryHasSave()) { if (loadGame()) state = S_OW; }
     else advanceIntro();
@@ -628,6 +636,7 @@ function handleClick(button, mx, my) {
 }
 
 function handleKeyDown(key) {
+  if (state === S_ENCOUNTER) return;
   if (state === S_OW) {
     if (key === "m" || key === "M") { state = S_MENU; cursor = 0; }
     else if (key === "ArrowUp" || key === "w") movePlayer(0, -1, "up");
@@ -716,6 +725,10 @@ function gameLoop(timestamp) {
   const dt = Math.min((timestamp - lastTime) / 1000, 0.1);
   lastTime = timestamp; time += dt; scrollCD = Math.max(0, scrollCD - dt);
   player.playTime += dt;
+  if (state === S_ENCOUNTER) {
+    encounterTimer += dt;
+    if (encounterTimer >= 0.7) { startWildBattleNow(encounterData.dex, encounterData.lv); encounterData = null; }
+  }
 
   // Render
   R.clear();
@@ -723,6 +736,19 @@ function gameLoop(timestamp) {
   else if (state === S_NAME) renderNameInput();
   else if (state === S_STARTER) renderStarter();
   else if (state === S_OW || state === S_DIALOG || state === S_INTRO) renderOverworld();
+  else if (state === S_ENCOUNTER) {
+    renderOverworld();
+    if (encounterTimer < 0.35) {
+      const flash = Math.floor(encounterTimer * 14) % 2;
+      if (flash) { ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, SCREEN_W, SCREEN_H); }
+    } else {
+      const wipeProg = Math.min(1, (encounterTimer - 0.35) / 0.35);
+      const barH = Math.floor(SCREEN_H / 2 * wipeProg);
+      ctx.fillStyle = "#000000";
+      ctx.fillRect(0, 0, SCREEN_W, barH);
+      ctx.fillRect(0, SCREEN_H - barH, SCREEN_W, barH);
+    }
+  }
   else if (state === S_BATTLE) renderBattle();
   else if (state === S_MENU) renderMenu();
   else if (state === S_PARTY) R.partyMenu(player.party, cursor);
