@@ -51,7 +51,7 @@ function createRoute1(){
   setT(m,10,19,TILE_DOOR);m.doors.push({x:10,y:19,dest:2,destX:10,destY:1});
   m.npcs.push({x:7,y:10,type:"trainer",name:"Bug Catcher Tim",dialog:["My bugs are strong!","Let's battle!"],facing:"right",defeated:false,party:[[7,3],[7,3]]});
   m.npcs.push({x:14,y:10,type:"trainer",name:"Youngster Joey",dialog:["I like shorts!","They're comfy and easy to wear!"],facing:"left",defeated:false,party:[[9,4],[11,4]]});
-  m.npcs.push({x:10,y:5,type:"rival",name:"Rival",dialog:["So we meet again!","Let me see how much you've grown!"],facing:"down",defeated:false,rival_enc:1,rival_party:true});
+  m.npcs.push({x:10,y:5,type:"rival",name:"Luna",dialog:["So we meet again!","Let me see how much you've grown!"],facing:"down",defeated:false,rival_enc:1,rival_party:true});
   m.encTable=[[7,3],[9,3],[13,3],[15,3],[17,3],[23,3]];
   return m;
 }
@@ -66,7 +66,7 @@ function createEmberTown(){
   m.npcs.push({x:10,y:11,type:"healer",name:"Nurse Joy",dialog:["Welcome to the Minimon Healing Center!","Let me heal your Minis!"],facing:"up"});
   m.npcs.push({x:14,y:7,type:"trainer",name:"Blaze",dialog:["I am Blaze, the Inferno Dojo Leader!","Feel the heat of my flames!"],facing:"down",defeated:false,party:[[1,14],[21,13],[11,15]],badge:"Inferno Badge",reward:4000});
   m.npcs.push({x:6,y:12,type:"trainer",name:"Camper Iris",dialog:["Nature is my ally!"],facing:"right",defeated:false,party:[[3,10]]});
-  m.npcs.push({x:15,y:5,type:"rival",name:"Rival",dialog:["You got the Nature Badge?","I'm impressed! Let's battle!"],facing:"down",defeated:false,rival_enc:2,rival_party:true});
+  m.npcs.push({x:15,y:5,type:"rival",name:"Luna",dialog:["You got the Nature Badge?","I'm impressed! Let's battle!"],facing:"down",defeated:false,rival_enc:2,rival_party:true});
   m.npcs.push({x:5,y:15,type:"trainer",name:"Team Shadow Grunt",dialog:["Team Shadow will take over the world!"],facing:"right",defeated:false,party:[[25,12],[35,11]],evil:true,evil_enc:1});
   m.npcs.push({x:8,y:11,type:"item_giver",name:"TM Collector",dialog:["I collect TMs!","Here, have this one!"],facing:"down",give_item:I_TM_VWHIP,give_count:1,gave_item:false});
   m.npcs.push({x:13,y:11,type:"trade_npc",name:"Trader Sam",dialog:["I'll trade you a Fire Mini for your Water Mini!","Deal?"],facing:"left",trade_want_type:TYPE_WATER,give_dex:11,give_name:"Sparkitten",traded:false});
@@ -91,12 +91,12 @@ function createRoute2(){
 }
 
 function createFrostHarbor(){
-  const m=makeMap(20,20,"Frost Harbor",0.0);
+  const m=makeMap(20,20,"Frost Harbor",0.10);
   fillBorder(m,TILE_TREE);fillRect(m,3,3,16,16,TILE_PATH);
   setT(m,10,10,TILE_HEAL);setT(m,11,10,TILE_SHOP);setT(m,10,5,TILE_GYM);
   setT(m,10,0,TILE_DOOR);m.doors.push({x:10,y:0,dest:3,destX:10,destY:18});
   setT(m,10,19,TILE_DOOR);m.doors.push({x:10,y:19,dest:5,destX:10,destY:1});
-  m.npcs.push({x:10,y:7,type:"gym_leader",name:"Glacia",dialog:["I am Glacia, the Tidal Temple Leader!","Feel the power of the ocean!"],facing:"down",defeated:false,party:[[22,18],[32,17],[42,19]],badge:"Tidal Badge",reward:5000});
+  m.npcs.push({x:10,y:7,type:"gym_leader",name:"Glacia",dialog:["I am Glacia, the Tidal Temple Leader!","Feel the power of the ocean!"],facing:"down",defeated:false,party:[[22,22],[32,21],[42,23]],badge:"Tidal Badge",reward:5000});
   m.npcs.push({x:10,y:11,type:"healer",name:"Nurse Joy",dialog:["Welcome to the Minimon Healing Center!","Let me heal your Minis!"],facing:"up"});
   m.npcs.push({x:6,y:12,type:"trainer",name:"Sailor Drake",dialog:["The sea is my home!"],facing:"right",defeated:false,party:[[31,16],[5,16]]});
   m.npcs.push({x:15,y:15,type:"trainer",name:"Team Shadow Elite",dialog:["Team Shadow's power grows!"],facing:"up",defeated:false,party:[[25,20],[35,19],[45,18]],evil:true,evil_enc:2});
@@ -109,12 +109,12 @@ function createFrostHarbor(){
 }
 
 function createStormSpire(){
-  const m=makeMap(20,20,"Storm Spire",0.0);
+  const m=makeMap(20,20,"Storm Spire",0.10);
   fillBorder(m,TILE_ROCK);fillRect(m,5,5,14,14,TILE_PATH);
   setT(m,10,10,TILE_HEAL);setT(m,10,5,TILE_GYM);
   setT(m,10,0,TILE_DOOR);m.doors.push({x:10,y:0,dest:5,destX:10,destY:18});
   setT(m,10,19,TILE_DOOR);m.doors.push({x:10,y:19,dest:6,destX:10,destY:1});
-  m.npcs.push({x:10,y:7,type:"gym_leader",name:"Volt",dialog:["I am Volt, Storm Spire Leader!","Feel the power of lightning!"],facing:"down",defeated:false,party:[[23,24],[33,22]],badge:"Storm Badge",reward:6000});
+  m.npcs.push({x:10,y:7,type:"gym_leader",name:"Volt",dialog:["I am Volt, Storm Spire Leader!","Feel the power of lightning!"],facing:"down",defeated:false,party:[[23,28],[33,26]],badge:"Storm Badge",reward:6000});
   m.npcs.push({x:10,y:11,type:"healer",name:"Nurse Joy",dialog:["Welcome to the Minimon Healing Center!","Let me heal your Minis!"],facing:"up"});
   m.npcs.push({x:6,y:10,type:"trainer",name:"Sparky",dialog:["My Electric moves are shocking!"],facing:"right",defeated:false,party:[[23,20],[33,19]]});
   m.npcs.push({x:14,y:10,type:"item_giver",name:"Electric Engineer",dialog:["I study lightning!","Here, take this TM!"],facing:"left",give_item:I_TM_TSHOCK,give_count:1,gave_item:false});
@@ -125,12 +125,12 @@ function createStormSpire(){
 }
 
 function createCrystalCavern(){
-  const m=makeMap(20,20,"Crystal Cavern",0.0);
+  const m=makeMap(20,20,"Crystal Cavern",0.10);
   fillBorder(m,TILE_ROCK);fillRect(m,4,4,15,15,TILE_PATH);
   setT(m,10,10,TILE_HEAL);setT(m,10,5,TILE_GYM);
   setT(m,10,0,TILE_DOOR);m.doors.push({x:10,y:0,dest:6,destX:10,destY:18});
   setT(m,10,19,TILE_DOOR);m.doors.push({x:10,y:19,dest:7,destX:10,destY:1});
-  m.npcs.push({x:10,y:7,type:"gym_leader",name:"Glacius",dialog:["I am Glacius, Crystal Cavern Leader!","Feel the chill of eternity!"],facing:"down",defeated:false,party:[[24,28],[34,26]],badge:"Crystal Badge",reward:7000});
+  m.npcs.push({x:10,y:7,type:"gym_leader",name:"Glacius",dialog:["I am Glacius, Crystal Cavern Leader!","Feel the chill of eternity!"],facing:"down",defeated:false,party:[[24,32],[34,30]],badge:"Crystal Badge",reward:7000});
   m.npcs.push({x:10,y:11,type:"healer",name:"Nurse Joy",dialog:["Welcome to the Minimon Healing Center!","Let me heal your Minis!"],facing:"up"});
   m.npcs.push({x:6,y:10,type:"trainer",name:"Frosty",dialog:["My Ice moves are freezing!"],facing:"right",defeated:false,party:[[24,24],[34,23]]});
   m.npcs.push({x:14,y:8,type:"item_giver",name:"Gem Collector",dialog:["These crystals are mesmerizing!","Take this TM as a souvenir!"],facing:"down",give_item:I_TM_ISHARD,give_count:1,gave_item:false});
@@ -146,7 +146,7 @@ function createShadowGate(){
   setT(m,10,10,TILE_HEAL);setT(m,10,5,TILE_GYM);
   setT(m,10,0,TILE_DOOR);m.doors.push({x:10,y:0,dest:7,destX:10,destY:18});
   setT(m,10,19,TILE_DOOR);m.doors.push({x:10,y:19,dest:8,destX:10,destY:1});
-  m.npcs.push({x:10,y:7,type:"gym_leader",name:"Nyx",dialog:["I am Nyx, Shadow Gate Leader!","Embrace the darkness!"],facing:"down",defeated:false,party:[[25,32],[35,30]],badge:"Shadow Badge",reward:8000});
+  m.npcs.push({x:10,y:7,type:"gym_leader",name:"Nyx",dialog:["I am Nyx, Shadow Gate Leader!","Embrace the darkness!"],facing:"down",defeated:false,party:[[25,36],[35,34]],badge:"Shadow Badge",reward:8000});
   m.npcs.push({x:10,y:11,type:"healer",name:"Nurse Joy",dialog:["Welcome to the Minimon Healing Center!","Let me heal your Minis!"],facing:"up"});
   m.npcs.push({x:15,y:15,type:"trainer",name:"Team Shadow Boss",dialog:["I am the Boss of Team Shadow!","You dare challenge me?"],facing:"up",defeated:false,party:[[25,35],[35,34],[45,33],[55,32]],evil:true,evil_enc:3});
   m.npcs.push({x:8,y:8,type:"item_giver",name:"Shadow Researcher",dialog:["I study the dark energy here.","Take this TM for protection!"],facing:"down",give_item:I_TM_SBALL,give_count:1,gave_item:false});
@@ -162,7 +162,7 @@ function createSolarSanctum(){
   setT(m,10,10,TILE_HEAL);setT(m,10,5,TILE_GYM);
   setT(m,10,0,TILE_DOOR);m.doors.push({x:10,y:0,dest:8,destX:10,destY:18});
   setT(m,10,19,TILE_DOOR);m.doors.push({x:10,y:19,dest:9,destX:10,destY:1});
-  m.npcs.push({x:10,y:7,type:"gym_leader",name:"Lux",dialog:["I am Lux, Solar Sanctum Leader!","Behold the light of dawn!"],facing:"down",defeated:false,party:[[26,36],[36,34]],badge:"Solar Badge",reward:9000});
+  m.npcs.push({x:10,y:7,type:"gym_leader",name:"Lux",dialog:["I am Lux, Solar Sanctum Leader!","Behold the light of dawn!"],facing:"down",defeated:false,party:[[26,40],[36,38]],badge:"Solar Badge",reward:9000});
   m.npcs.push({x:10,y:11,type:"healer",name:"Nurse Joy",dialog:["Welcome to the Minimon Healing Center!","Let me heal your Minis!"],facing:"up"});
   m.npcs.push({x:6,y:10,type:"trainer",name:"Dawn",dialog:["My Light moves shine bright!"],facing:"right",defeated:false,party:[[26,32],[36,31]]});
   m.npcs.push({x:14,y:8,type:"item_giver",name:"Light Keeper",dialog:["The light guides us all!","Take this TM!"],facing:"down",give_item:I_TM_DGLEAM,give_count:1,gave_item:false});
@@ -176,9 +176,9 @@ function createGrandColosseum(){
   const m=makeMap(20,20,"Grand Colosseum",0.0);
   fillBorder(m,TILE_ROCK);fillRect(m,3,3,16,16,TILE_PATH);
   setT(m,10,10,TILE_HEAL);setT(m,10,5,TILE_GYM);
-  setT(m,10,0,TILE_DOOR);m.doors.push({x:10,y:0,dest:9,destX:10,destY:18});
+  setT(m,10,0,TILE_DOOR);m.doors.push({x:10,y:0,dest:8,destX:10,destY:18});
   setT(m,10,19,TILE_DOOR);m.doors.push({x:10,y:19,dest:10,destX:10,destY:1});
-  m.npcs.push({x:10,y:7,type:"gym_leader",name:"Drakon",dialog:["I am Drakon, Grand Colosseum Leader!","Witness the might of dragons!"],facing:"down",defeated:false,party:[[27,40],[37,38]],badge:"Dragon Badge",reward:10000});
+  m.npcs.push({x:10,y:7,type:"gym_leader",name:"Drakon",dialog:["I am Drakon, Grand Colosseum Leader!","Witness the might of dragons!"],facing:"down",defeated:false,party:[[27,44],[37,42]],badge:"Dragon Badge",reward:10000});
   m.npcs.push({x:10,y:11,type:"healer",name:"Nurse Joy",dialog:["Welcome to the Minimon Healing Center!","Let me heal your Minis!"],facing:"up"});
   m.npcs.push({x:6,y:10,type:"trainer",name:"Wyvern",dialog:["My Dragon moves are fierce!"],facing:"right",defeated:false,party:[[27,36],[37,35]]});
   m.npcs.push({x:14,y:8,type:"item_giver",name:"Dragon Master",dialog:["Only the worthy carry this TM!"],facing:"down",give_item:I_TM_DCLAW,give_count:1,gave_item:false});
@@ -191,12 +191,14 @@ function createGrandColosseum(){
 function createElite4Hall(){
   const m=makeMap(20,20,"Elite Four Hall",0.0);
   fillBorder(m,TILE_ROCK);fillRect(m,3,3,16,16,TILE_PATH);
+  setT(m,10,0,TILE_DOOR);m.doors.push({x:10,y:0,dest:9,destX:10,destY:18});
+  setT(m,10,19,TILE_DOOR);m.doors.push({x:10,y:19,dest:11,destX:10,destY:1});
   setT(m,10,10,TILE_HEAL);
   m.npcs.push({x:10,y:11,type:"healer",name:"Nurse Joy",dialog:["Welcome to the Elite Four Healing Center!","Let me heal your Minis for the challenges ahead!"],facing:"up"});
-  m.npcs.push({x:10,y:5,type:"trainer",name:"Elite Aria",dialog:["I am Aria of the Elite Four!","My melodies shall console you!"],facing:"down",defeated:false,party:[[44,44],[54,43],[64,42]],reward:12000});
-  m.npcs.push({x:5,y:10,type:"trainer",name:"Elite Terra",dialog:["I am Terra of the Elite Four!","The earth trembles before me!"],facing:"right",defeated:false,party:[[45,46],[55,45],[65,44]],reward:12000});
-  m.npcs.push({x:15,y:10,type:"trainer",name:"Elite Umbra",dialog:["I am Umbra of the Elite Four!","Shadow and nightmare!"],facing:"left",defeated:false,party:[[46,48],[56,47],[66,46]],reward:12000});
-  m.npcs.push({x:10,y:15,type:"trainer",name:"Elite Sol",dialog:["I am Sol of the Elite Four!","Radiance purifies all!"],facing:"up",defeated:false,party:[[47,50],[57,49],[67,48]],reward:12000});
+  m.npcs.push({x:10,y:5,type:"trainer",name:"Elite Aria",dialog:["I am Aria of the Elite Four!","My melodies shall console you!"],facing:"down",defeated:false,party:[[44,50],[54,49],[64,48]],reward:12000});
+  m.npcs.push({x:5,y:10,type:"trainer",name:"Elite Terra",dialog:["I am Terra of the Elite Four!","The earth trembles before me!"],facing:"right",defeated:false,party:[[45,52],[55,51],[65,50]],reward:12000});
+  m.npcs.push({x:15,y:10,type:"trainer",name:"Elite Umbra",dialog:["I am Umbra of the Elite Four!","Shadow and nightmare!"],facing:"left",defeated:false,party:[[46,54],[56,53],[66,52]],reward:12000});
+  m.npcs.push({x:10,y:15,type:"trainer",name:"Elite Sol",dialog:["I am Sol of the Elite Four!","Radiance purifies all!"],facing:"up",defeated:false,party:[[47,56],[57,55],[67,54]],reward:12000});
   m.signs.push({x:12,y:10,text:"Elite Four Hall - Only the worthy may pass!"});
   return m;
 }
@@ -204,9 +206,10 @@ function createElite4Hall(){
 function createChampionArena(){
   const m=makeMap(20,20,"Champion Arena",0.0);
   fillBorder(m,TILE_ROCK);fillRect(m,4,4,15,15,TILE_PATH);
+  setT(m,10,0,TILE_DOOR);m.doors.push({x:10,y:0,dest:10,destX:10,destY:18});
   setT(m,10,12,TILE_HEAL);
   m.npcs.push({x:10,y:13,type:"healer",name:"Nurse Joy",dialog:["Welcome to the Champion Arena Healing Center!","Heal up before the final battle!"],facing:"up"});
-  m.npcs.push({x:10,y:8,type:"trainer",name:"Champion Zenith",dialog:["I am Zenith, the Champion!","You have journeyed far. Let us see if you are truly worthy!"],facing:"down",defeated:false,party:[[48,55],[58,54],[68,53],[78,52],[1,50],[21,50]],reward:50000});
+  m.npcs.push({x:10,y:8,type:"trainer",name:"Champion Zenith",dialog:["I am Zenith, the Champion!","You have journeyed far. Let us see if you are truly worthy!"],facing:"down",defeated:false,party:[[48,60],[58,59],[68,58],[78,57],[1,55],[21,55]],reward:50000});
   m.signs.push({x:12,y:10,text:"Champion Arena - The Final Battle!"});
   return m;
 }

@@ -121,13 +121,13 @@ _m("confuse_ray","Confuse Ray",TYPE_WIND,STATUS,0,100,10,"confuse",100);
 _m("flash","Flash",TYPE_LIGHT,STATUS,0,100,20,"satk_down",100);
 _m("dazzling_gleam","Dazzling Gleam",TYPE_LIGHT,SPECIAL,80,100,10);
 _m("moonlight","Moonlight",TYPE_LIGHT,STATUS,0,0,5,"recover",100);
-_m("bug_buzz","Bug Buzz",TYPE_NORMAL,SPECIAL,80,100,10);
+_m("bug_buzz","Bug Buzz",TYPE_WIND,SPECIAL,80,100,10);
 
 // DRAGON
 _m("dragon_rage","Dragon Rage",TYPE_DRAGON,SPECIAL,0,100,10);
 _m("dragon_claw","Dragon Claw",TYPE_DRAGON,PHYSICAL,80,100,15);
 _m("dragon_pulse","Dragon Pulse",TYPE_DRAGON,SPECIAL,85,100,10);
-_m("dragon_dance","Dragon Dance",TYPE_DRAGON,STATUS,0,0,20,"atk_up",100);
+_m("dragon_dance","Dragon Dance",TYPE_DRAGON,STATUS,0,0,20,"atk_spd_up",100);
 _m("outrage","Outrage",TYPE_DRAGON,PHYSICAL,120,100,10);
 
 // STATUS

@@ -19,7 +19,7 @@ const R = new Renderer(ctx, SCREEN_W, SCREEN_H);
 const S_TITLE="title", S_INTRO="intro", S_OW="overworld", S_BATTLE="battle", S_MENU="menu",
 S_PARTY="party", S_BAG="bag", S_MOVES="moves", S_DIALOG="dialog", S_EVOLUTION="evolution",
 S_SHOP="shop", S_GAMEOVER="gameover", S_VICTORY="victory", S_STARTER="choose_starter",
-S_TM="tm_select";
+S_TM="tm_select", S_NAME="name_input";
 
 const FACING = ["down","left","up","right"];
 const FACING_CYCLE = {down:"left",left:"up",up:"right",right:"down"};
@@ -29,8 +29,65 @@ let state = S_TITLE, time = 0, cursor = 0, running = true;
 let currentMap = null, dialogQueue = [], dialogCurrent = "", dialogSpeaker = "";
 let pendingEvolution = null, pendingStarter = null, pendingTrainer = null, pendingGym = null;
 let pendingHealer = false, pendingTrade = null, pendingMoveLearn = null, pendingTM = null;
+let pendingNameInput = false;
 let battleState = null, battlePhase = "select";
 let shopCursor = 0;
+let nameInput = "", nameCursor = 0;
+const NAME_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
+let pokedex = {}; // { dexNum: { seen: bool, caught: bool } }
+function pokedexSee(dex) { if (!pokedex[dex]) pokedex[dex] = { seen: true, caught: false }; else pokedex[dex].seen = true; }
+function pokedexCatch(dex) { pokedexSee(dex); if (pokedex[dex]) pokedex[dex].caught = true; }
+
+function saveGame() {
+  const data = {
+    player: { x: player.x, y: player.y, facing: player.facing, name: player.name,
+      party: player.party.map(c => ({ dex: c.dex, level: c.level, xp: c.xp, hp: c.hp, moves: c.moves, status: c.status,
+        statStages: c.statStages, confusionTurns: c.confusionTurns })),
+      money: player.money, badges: player.badges, storyFlags: player.storyFlags,
+      rivalName: player.rivalName, rivalStarter: player.rivalStarter, starterChoice: player.starterChoice,
+      inventory: player.inventory, stepCounter: player.stepCounter, playTime: player.playTime },
+    mapIdx: MAP_CREATORS.indexOf(MAP_CREATORS.find((fn, i) => fn === MAP_CREATORS[i])),
+    pokedex: pokedex,
+    defeatedTrainers: currentMap ? currentMap.npcs.filter(n => n.defeated).map(n => n.name) : []
+  };
+  // Find current map index
+  for (let i = 0; i < MAP_CREATORS.length; i++) {
+    const m = MAP_CREATORS[i]();
+    if (m.name === currentMap.name) { data.mapIdx = i; break; }
+  }
+  try { localStorage.setItem("minimon_save", JSON.stringify(data)); return true; } catch(e) { return false; }
+}
+
+function loadGame() {
+  try {
+    const raw = localStorage.getItem("minimon_save");
+    if (!raw) return false;
+    const data = JSON.parse(raw);
+    const p = data.player;
+    player.x = p.x; player.y = p.y; player.facing = p.facing; player.name = p.name;
+    player.money = p.money; player.badges = p.badges || []; player.storyFlags = p.storyFlags || {};
+    player.rivalName = p.rivalName || "Luna"; player.rivalStarter = p.rivalStarter; player.starterChoice = p.starterChoice;
+    player.inventory = p.inventory || {}; player.stepCounter = p.stepCounter || 0; player.playTime = p.playTime || 0;
+    player.party = (p.party || []).map(c => {
+      const bc = new BattleCreature(c.dex, c.level);
+      bc.xp = c.xp; bc.hp = c.hp; bc.moves = c.moves; bc.status = c.status || null;
+      bc.statStages = c.statStages || [0,0,0,0,0,0]; bc.confusionTurns = c.confusionTurns || 0;
+      return bc;
+    });
+    pokedex = data.pokedex || {};
+    currentMap = MAP_CREATORS[data.mapIdx || 0]();
+    // Restore defeated trainers
+    if (data.defeatedTrainers) {
+      for (const npc of currentMap.npcs) {
+        if (data.defeatedTrainers.includes(npc.name)) npc.defeated = true;
+      }
+    }
+    return true;
+  } catch(e) { return false; }
+}
+
+function deleteSave() { try { localStorage.removeItem("minimon_save"); } catch(e) {} }
+function tryHasSave() { try { return !!localStorage.getItem("minimon_save"); } catch(e) { return false; } }
 const SHOP_ITEMS = [
   I_POTION,I_SPOTION,I_HPOTION,
   I_FHEAL,
@@ -60,7 +117,7 @@ function bestSphere(){if(hasItem(I_MSPHERE))return[I_MSPHERE,SPHERE_MASTER];if(h
 function setDialog(msgs, speaker) { dialogQueue = msgs.slice(); dialogSpeaker = speaker || ""; nextDialog(); }
 function nextDialog() {
   if (dialogQueue.length) { dialogCurrent = dialogQueue.shift(); return; }
-  // Queue empty - process pending actions
+  if (pendingNameInput) { pendingNameInput = false; state = S_NAME; nameInput = ""; nameCursor = 0; return; }
   if (pendingStarter) { state = S_STARTER; cursor = 0; return; }
   if (pendingTrainer) { const npc = pendingTrainer; pendingTrainer = null; if (npc.type === "rival") startRivalBattle(npc); else startTrainerBattle(npc); return; }
   if (pendingGym) { const npc = pendingGym; pendingGym = null; startGymBattle(npc); return; }
@@ -72,6 +129,7 @@ function nextDialog() {
 }
 function advanceDialog() {
   if (dialogQueue.length) { dialogCurrent = dialogQueue.shift(); return; }
+  if (pendingNameInput) { pendingNameInput = false; state = S_NAME; nameInput = ""; nameCursor = 0; return; }
   if (pendingStarter) { state = S_STARTER; cursor = 0; return; }
   if (pendingTrainer) { const npc = pendingTrainer; pendingTrainer = null; if (npc.type === "rival") startRivalBattle(npc); else startTrainerBattle(npc); return; }
   if (pendingGym) { const npc = pendingGym; pendingGym = null; startGymBattle(npc); return; }
@@ -171,13 +229,14 @@ function executeTrade(npc) {
 // Battle start functions
 function startWildBattle(dex, lv) {
   const wild = new BattleCreature(dex, lv, null, true);
+  pokedexSee(dex);
   if (!aliveParty().length) { state = S_GAMEOVER; return; }
   battleState = new BattleState(aliveParty(), [wild], false, "", true, true);
   state = S_BATTLE; battlePhase = "menu"; cursor = 0;
   battleState.message = "A wild " + wild.name + " appeared!";
 }
 function startTrainerBattle(npc) {
-  const party = npc.party.map(([d, l]) => new BattleCreature(d, l));
+  const party = npc.party.map(([d, l]) => { pokedexSee(d); return new BattleCreature(d, l); });
   if (!aliveParty().length) { state = S_GAMEOVER; return; }
   battleState = new BattleState(aliveParty(), party, true, npc.name, false, false);
   state = S_BATTLE; battlePhase = "menu"; cursor = 0;
@@ -194,7 +253,7 @@ function startRivalBattle(npc) {
 function startGymBattle(npc) {
   const party = npc.party.map(([d, l]) => new BattleCreature(d, l));
   if (!aliveParty().length) { state = S_GAMEOVER; return; }
-  battleState = new BattleState(aliveParty(), party, true, npc.name, false, false);
+  battleState = new BattleState(aliveParty(), party, true, npc.name, false, false, true);
   state = S_BATTLE; battlePhase = "menu"; cursor = 0;
   battleState.message = "Gym Leader " + npc.name + " wants to battle!";
 }
@@ -289,6 +348,7 @@ function useBattleItem() {
         } else {
           battleState.addMsg("Gotcha! " + battleState.enemy.name + " was caught!");
           const c = new BattleCreature(battleState.enemy.dex, battleState.enemy.level);
+          pokedexCatch(battleState.enemy.dex);
           addCreature(c);
           if (!battleState.nextEnemy()) { battleState.playerWon = true; battleState.battleOver = true; }
         }
@@ -298,6 +358,10 @@ function useBattleItem() {
     const fainted = player.party.filter(c => !c.isAlive() && c !== battleState.player);
     if (fainted.length) { const hp = name === I_REVIVE ? 1 : fainted[0].maxHP; if (removeItem(name)) { fainted[0].hp = hp; battleState.addMsg(fainted[0].name + " revived!"); } }
     else battleState.addMsg("No fainted Minis!");
+  } else if (name === I_XATK) {
+    if (removeItem(name)) { battleState.player.statStages[1] = Math.min(6, battleState.player.statStages[1] + 1); battleState.addMsg(battleState.player.name + "'s ATK rose!"); }
+  } else if (name === I_XDEF) {
+    if (removeItem(name)) { battleState.player.statStages[2] = Math.min(6, battleState.player.statStages[2] + 1); battleState.addMsg(battleState.player.name + "'s DEF rose!"); }
   }
   battlePhase = "message";
 }
@@ -339,6 +403,17 @@ function handleMoveLearn() {
   if (creature.moves.length < 4) { creature.moves.push(newMove); pendingMoveLearn = null; setDialog([creature.name + " learned " + md.name + "!"]); return; }
   // Otherwise show forget menu
   state = S_MOVES; cursor = 0;
+}
+
+function confirmName() {
+  player.name = nameInput || "Hero";
+  setDialog([
+    "Well then, " + player.name + "! Your adventure begins now!",
+    "Your neighbor Luna has also just received a partner Mini.",
+    "Now, choose your very first Mini wisely!",
+    "It will be your trusted partner on this journey!"
+  ]);
+  pendingStarter = [1, 2, 3];
 }
 
 function chooseStarter() {
@@ -394,12 +469,13 @@ function selectTMCreature() {
 
 // Menu handlers
 function selectMenu() {
-  const opts = ["Party","Bag","Save","Pokedex","Quit"];
+  const opts = ["Party","Bag","Save","Load","Pokedex","Quit"];
   const choice = opts[cursor];
   if (choice === "Party") { state = S_PARTY; cursor = 0; }
   else if (choice === "Bag") { state = S_BAG; cursor = 0; }
-  else if (choice === "Save") { setDialog(["Game saved! (Not really, but imagine it!)"]); }
-  else if (choice === "Pokedex") { setDialog(["Seen " + Object.keys(CREATURES).length + " Minis in Minimon!"]); }
+  else if (choice === "Save") { if (saveGame()) setDialog(["Game saved!"]); else setDialog(["Save failed!"]); }
+  else if (choice === "Load") { if (loadGame()) setDialog(["Game loaded!"]); else setDialog(["No save found!"]); }
+  else if (choice === "Pokedex") { state = "pokedex"; cursor = 0; }
   else if (choice === "Quit") running = false;
 }
 
@@ -450,6 +526,7 @@ let scrollCD = 0;
 function handleScroll(dir) {
   if (state === S_TITLE) { state = S_INTRO; advanceIntro(); }
   else if (state === S_INTRO) advanceIntro();
+  else if (state === S_NAME) { nameCursor = (nameCursor + dir + 29) % 29; }
   else if (state === S_BATTLE) {
     if (battlePhase === "message") nextBattleMsg();
     else if (battlePhase === "select") cursor = Math.max(0, Math.min(3, cursor + dir));
@@ -457,12 +534,13 @@ function handleScroll(dir) {
     else if (battlePhase === "party") cursor = Math.max(0, Math.min(player.party.length - 1, cursor + dir));
     else if (battlePhase === "bag") { const items = Object.entries(player.inventory).filter(([k, v]) => v > 0 && [I_POTION,I_SPOTION,I_HPOTION,I_FHEAL,I_SPHERE,I_GSPHERE,I_USPHERE,I_MSPHERE,I_REVIVE,I_FREVIVE].includes(k)); cursor = Math.max(0, Math.min(items.length - 1, cursor + dir)); }
   }
-  else if (state === S_MENU) cursor = Math.max(0, Math.min(4, cursor + dir));
+  else if (state === S_MENU) cursor = Math.max(0, Math.min(5, cursor + dir));
   else if (state === S_PARTY) cursor = Math.max(0, Math.min(player.party.length - 1, cursor + dir));
   else if (state === S_BAG) { const items = Object.entries(player.inventory).filter(([, v]) => v > 0); cursor = Math.max(0, Math.min(items.length - 1, cursor + dir)); }
   else if (state === S_MOVES && pendingMoveLearn) { cursor = Math.max(0, Math.min(pendingMoveLearn.creature.moves.length - 1, cursor + dir)); }
   else if (state === S_DIALOG) advanceDialog();
   else if (state === S_SHOP) shopCursor = Math.max(0, Math.min(SHOP_ITEMS.length - 1, shopCursor + dir));
+  else if (state === "pokedex") { const max = Math.max(0, Object.entries(pokedex).length - 15); cursor = Math.max(0, Math.min(max, cursor + dir)); }
   else if (state === S_EVOLUTION) advanceDialog();
   else if (state === S_STARTER) cursor = Math.max(0, Math.min(2, cursor + dir));
   else if (state === S_TM && pendingTM) cursor = Math.max(0, Math.min(pendingTM.compatible.length - 1, cursor + dir));
@@ -470,7 +548,17 @@ function handleScroll(dir) {
 }
 
 function handleClick(button, mx, my) {
-  if (state === S_TITLE || state === S_INTRO) advanceIntro();
+  if (state === S_TITLE) {
+    if (button === 3 && tryHasSave()) { if (loadGame()) state = S_OW; }
+    else advanceIntro();
+  }
+  else if (state === S_INTRO) advanceIntro();
+  else if (state === S_NAME) {
+    if (nameCursor < 26) { nameInput += NAME_CHARS[nameCursor]; if (nameInput.length > 10) nameInput = nameInput.slice(0, 10); }
+    else if (nameCursor === 26) { nameInput = nameInput.slice(0, -1); }
+    else if (nameCursor === 27) { confirmName(); }
+    else if (nameCursor === 28) { nameInput += " "; if (nameInput.length > 10) nameInput = nameInput.slice(0, 10); }
+  }
   else if (state === S_OW) {
     if (button === 1) {
       // Check D-pad
@@ -504,6 +592,7 @@ function handleClick(button, mx, my) {
   }
   else if (state === S_MENU && button === 1) selectMenu();
   else if (state === S_MENU && button === 3) { state = S_OW; }
+  else if (state === "pokedex") { state = S_MENU; cursor = 0; }
   else if (state === S_PARTY && button === 1) selectParty();
   else if (state === S_PARTY && button === 3) { state = S_MENU; cursor = 0; }
   else if (state === S_BAG && button === 1) useItem();
@@ -552,13 +641,22 @@ function handleKeyDown(key) {
   } else if (state === S_MENU) {
     if (key === "Escape") state = S_OW;
     else if (key === "Enter" || key === " ") selectMenu();
-  } else if (state === S_PARTY && key === "Escape") { state = S_MENU; cursor = 0; }
+  } else if (state === "pokedex") { if (key === "Escape") { state = S_MENU; cursor = 0; } } else if (state === S_PARTY && key === "Escape") { state = S_MENU; cursor = 0; }
   else if (state === S_BAG && key === "Escape") { state = S_MENU; cursor = 0; }
   else if (state === S_MOVES && key === "Escape") {
     if (pendingMoveLearn) { const { creature, newMove } = pendingMoveLearn; pendingMoveLearn = null; pendingTM = null; setDialog([creature.name + " did not learn " + MOVES[newMove.id].name + "."]); }
     else { state = S_MENU; cursor = 0; }
   }
   else if (state === S_STARTER && key === "Escape") state = S_TITLE;
+  else if (state === S_NAME) {
+    if (key === "Backspace") { nameInput = nameInput.slice(0, -1); }
+    else if (key === "Enter") { confirmName(); }
+    else if (key === "Escape") { state = S_TITLE; }
+    else if (key.length === 1 && key.match(/[a-zA-Z ]/)) {
+      nameInput += key.toUpperCase();
+      if (nameInput.length > 10) nameInput = nameInput.slice(0, 10);
+    }
+  }
   else if (state === S_TM && key === "Escape") { pendingTM = null; state = S_BAG; cursor = 0; }
   else if (state === S_GAMEOVER && key === "Enter") { initGame(); state = S_TITLE; }
 }
@@ -567,13 +665,9 @@ function advanceIntro() {
   setDialog([
     "Welcome to the world of Minimon!",
     "I'm Professor Sage. I study the mysterious creatures called Minis.",
-    "But first... what is your name?",
-    "Well then, " + player.name + "! Your adventure begins now!",
-    "Your neighbor Luna has also just received a partner Mini.",
-    "Now, choose your very first Mini wisely!",
-    "It will be your trusted partner on this journey!"
+    "But first... what is your name?"
   ]);
-  pendingStarter = [1, 2, 3]; // Fire, Water, Grass
+  pendingNameInput = true;
 }
 
 // === GAME INIT ===
@@ -613,6 +707,7 @@ function gameLoop(timestamp) {
   // Render
   R.clear();
   if (state === S_TITLE || state === S_INTRO) R.startScreen(time);
+  else if (state === S_NAME) renderNameInput();
   else if (state === S_STARTER) renderStarter();
   else if (state === S_OW || state === S_DIALOG) renderOverworld();
   else if (state === S_BATTLE) renderBattle();
@@ -623,6 +718,7 @@ function gameLoop(timestamp) {
   else if (state === S_SHOP) R.shopMenu(SHOP_ITEMS, shopCursor, player.money);
   else if (state === S_EVOLUTION && pendingEvolution) R.evolveScreen(pendingEvolution[0], pendingEvolution[1], time);
   else if (state === S_TM && pendingTM) R.tmSelectMenu(pendingTM.compatible, cursor, MOVES[TM_MOVES[pendingTM.itemName]]?.name, pendingTM.itemName);
+  else if (state === "pokedex") renderPokedex();
   else if (state === S_GAMEOVER) {
     R.rect(0, 0, SCREEN_W, SCREEN_H, COL_BG);
     R.text(240, 200, "GAME OVER", COL_RED, 28, true);
@@ -631,6 +727,34 @@ function gameLoop(timestamp) {
   }
 
   requestAnimationFrame(gameLoop);
+}
+
+function renderNameInput() {
+  ctx.fillStyle = rgb(COL_BG); ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
+  R.text(240, 60, "Professor Sage", COL_YELLOW, 16, true);
+  R.text(240, 90, "What is your name?", COL_WHITE, 14, true);
+  // Display current name with cursor
+  const display = nameInput + (time % 1 < 0.5 ? "_" : " ");
+  R.rect(120, 120, 240, 40, COL_MENUBG);
+  R.rect(120, 120, 240, 40, COL_LGRAY, false, true);
+  R.text(240, 145, display, COL_WHITE, 20, true);
+  // Letter grid (6 columns x 5 rows)
+  const cols = 6, rows = 5, cellW = 60, cellH = 36;
+  const startX = (SCREEN_W - cols * cellW) / 2;
+  const startY = 185;
+  for (let i = 0; i < NAME_CHARS.length; i++) {
+    const c = i % cols, r = Math.floor(i / cols);
+    const x = startX + c * cellW, y = startY + r * cellH;
+    const selected = i === nameCursor;
+    if (selected) R.rect(x, y, cellW - 4, cellH - 4, COL_SELECT, 0.4);
+    R.text(x + cellW / 2, y + cellH / 2 + 4, NAME_CHARS[i], selected ? COL_YELLOW : COL_WHITE, 14, true);
+  }
+  // Action buttons
+  const btnY = startY + rows * cellH + 10;
+  R.text(120, btnY + 12, "DEL", nameCursor === 26 ? COL_YELLOW : COL_LGRAY, 14, true);
+  R.text(240, btnY + 12, "OK", nameCursor === 27 ? COL_YELLOW : COL_LGRAY, 14, true);
+  R.text(360, btnY + 12, "SPACE", nameCursor === 28 ? COL_YELLOW : COL_LGRAY, 14, true);
+  R.text(240, 460, "Scroll = Move | Click = Select", COL_GRAY, 11, true);
 }
 
 function renderStarter() {
@@ -694,7 +818,7 @@ function renderBattle() {
   } else if (battlePhase === "moves") R.moveMenu(battleState.player.moves, cursor, battleState.player);
   else if (battlePhase === "party") R.partyMenu(player.party, cursor);
   else if (battlePhase === "bag") {
-    const items = Object.entries(player.inventory).filter(([k, v]) => v > 0 && [I_POTION,I_SPOTION,I_HPOTION,I_FHEAL,I_SPHERE,I_GSPHERE,I_USPHERE,I_MSPHERE,I_REVIVE,I_FREVIVE].includes(k));
+  const items = Object.entries(player.inventory).filter(([k, v]) => v > 0 && [I_POTION,I_SPOTION,I_HPOTION,I_FHEAL,I_SPHERE,I_GSPHERE,I_USPHERE,I_MSPHERE,I_REVIVE,I_FREVIVE,I_XATK,I_XDEF].includes(k));
     R.box(10, 30, 460, 350); R.text(240, 48, "BAG", COL_YELLOW, 14, true);
     for (let i = 0; i < items.length; i++) {
       const [item, count] = items[i]; const y = 65 + i * 32;
@@ -705,17 +829,49 @@ function renderBattle() {
 }
 
 function renderMenu() {
-  R.box(100, 50, 280, 380); R.text(240, 68, "MENU", COL_YELLOW, 14, true);
-  const opts = ["Party","Bag","Save","Pokedex","Quit"];
+  R.box(100, 50, 280, 400); R.text(240, 68, "MENU", COL_YELLOW, 14, true);
+  const opts = ["Party","Bag","Save","Load","Pokedex","Quit"];
   for (let i = 0; i < opts.length; i++) {
-    const y = 100 + i * 50;
-    if (i === cursor) { R.rect(110, y - 5, 260, 40, COL_SELECT, 0.3); R.menuCursor(115, y + 3, time); }
+    const y = 100 + i * 45;
+    if (i === cursor) { R.rect(110, y - 5, 260, 36, COL_SELECT, 0.3); R.menuCursor(115, y + 3, time); }
     R.text(130, y + 15, opts[i], i === cursor ? COL_YELLOW : COL_WHITE, 14);
   }
   if (player.party.length) {
     const c = player.party[0];
-    R.text(240, 370, c.name + " Lv." + c.level + " HP:" + c.hp + "/" + c.maxHP, COL_GRAY, 11, true);
+    R.text(240, 380, c.name + " Lv." + c.level + " HP:" + c.hp + "/" + c.maxHP, COL_GRAY, 11, true);
   }
+}
+
+function renderPokedex() {
+  R.box(10, 10, 460, 460);
+  R.text(240, 30, "MINIMON POKEDEX", COL_YELLOW, 16, true);
+  const entries = Object.entries(pokedex);
+  const seen = entries.filter(([,v]) => v.seen).length;
+  const caught = entries.filter(([,v]) => v.caught).length;
+  R.text(240, 52, "Seen: " + seen + "/" + Object.keys(CREATURES).length + "  Caught: " + caught, COL_LGRAY, 12, true);
+  // Show list
+  const startY = 70;
+  for (let i = 0; i < Math.min(entries.length, 15); i++) {
+    const idx = cursor + i;
+    if (idx >= entries.length) break;
+    const [dex, data] = entries[idx];
+    const t = CREATURES[dex];
+    if (!t) continue;
+    const y = startY + i * 26;
+    if (idx === cursor) R.rect(16, y - 2, 448, 24, COL_SELECT, 0.3);
+    const num = String(dex).padStart(3, "0");
+    const status = data.caught ? " Caught" : data.seen ? " Seen" : " ???";
+    R.text(24, y + 14, "#" + num, COL_GRAY, 12);
+    if (data.seen) {
+      R.text(70, y + 14, t.name, COL_WHITE, 12);
+      R.text(200, y + 14, t.types.join("/"), TYPE_COLORS[t.types[0]] || COL_GRAY, 11);
+    } else {
+      R.text(70, y + 14, "???", COL_GRAY, 12);
+    }
+    R.text(420, y + 14, status, data.caught ? COL_GREEN : data.seen ? COL_YELLOW : COL_GRAY, 11, true);
+  }
+  if (entries.length > 15) R.text(240, 455, "Scroll to browse", COL_GRAY, 10, true);
+  R.text(240, 470, "Click/Right-click to go back", COL_GRAY, 10, true);
 }
 
 requestAnimationFrame(gameLoop);

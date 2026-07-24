@@ -147,8 +147,10 @@ class Renderer {
       this.creatureSprite(80 + (i % 3) * 140, 200 + Math.floor(i / 3) * 100, 60, show[i], 5);
     }
     this.text(240, 380, "Scroll/Click to Start", COL_WHITE, 14, true);
-    this.text(240, 400, "Rabbit R1 Edition", COL_GRAY, 11, true);
-    this.text(240, 420, "Scroll = Navigate | Click = Select", COL_GRAY, 11, true);
+    const hasSave = tryHasSave();
+    if (hasSave) this.text(240, 400, "Right-click = Continue", COL_GREEN, 12, true);
+    this.text(240, 420, "Rabbit R1 Edition", COL_GRAY, 11, true);
+    this.text(240, 440, "Scroll = Navigate | Click = Select", COL_GRAY, 11, true);
   }
 
   evolveScreen(oldDex, newDex, t) {

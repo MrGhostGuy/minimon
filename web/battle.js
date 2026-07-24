@@ -11,7 +11,7 @@ class BattleCreature {
       calcStat(t.baseStats[4], level), calcStat(t.baseStats[5], level)];
     this.maxHP = this.stats[0]; this.hp = this.maxHP;
     this.statStages = [0, 0, 0, 0, 0, 0]; this.status = null;
-    this.confusionTurns = 0; this.pendingMoves = [];
+    this.confusionTurns = 0; this.pendingMoves = []; this.protected = false;
     if (moves) {
       this.moves = moves.map(id => { const m = MOVES[id]; return m ? { id, pp: m.maxPP, maxPP: m.maxPP } : null; }).filter(Boolean);
     } else {
@@ -81,6 +81,7 @@ function calcDamage(atk, def, mvData) {
   if (mv.power === 0) {
     if (mv.id === "dragon_rage") return [40, "dragon_rage"];
     if (mv.id === "night_shade") return [atk.level, "night_shade"];
+    if (mv.id === "fissure") return [def.hp, "fissure_ohko"];
     return [0, "status"];
   }
   const eff = mv.id === "swift" ? 1 : typeEff(mv.type, def.types);
@@ -100,7 +101,11 @@ function calcDamage(atk, def, mvData) {
 function applyStatus(atk, def, mv) {
   if (!mv.effect) return null;
   if (mv.effect === "recover") { const h = Math.floor(atk.maxHP / 2); atk.heal(h); return "recovered " + h + " HP"; }
-  if (mv.effect === "leech") return "leech_active";
+  if (mv.effect === "leech") { if (!def.status && Math.random() * 100 <= mv.effectChance) { def.status = "leech_seed"; return "leech_active"; } return null; }
+  if (mv.effect === "atk_spd_up") { atk.statStages[1] = Math.min(6, atk.statStages[1] + 1); atk.statStages[3] = Math.min(6, atk.statStages[3] + 1); return "atk_spd_up"; }
+  if (mv.effect === "protect") { atk.protected = true; return "protect_active"; }
+  if (mv.effect === "sandstorm") { return "sandstorm_active"; }
+  if (mv.effect === "spite") { return "spite_active"; }
   const ups = ["atk_up", "def_up", "spd_up", "satk_up", "sdef_up"];
   const downs = ["atk_down", "def_down", "spd_down", "satk_down", "sdef_down"];
   const statMap = { atk_up: 1, def_up: 2, spd_up: 3, satk_up: 4, sdef_up: 5, atk_down: 1, def_down: 2, spd_down: 3, satk_down: 4, sdef_down: 5 };
@@ -149,11 +154,11 @@ function getAIMove(creature, opponent, diff) {
 }
 
 class BattleState {
-  constructor(playerParty, enemyParty, isTrainer, trainerName, canEscape, canCatch) {
+  constructor(playerParty, enemyParty, isTrainer, trainerName, canEscape, canCatch, isGymLeader) {
     this.playerParty = playerParty; this.enemyParty = enemyParty;
     this.playerIdx = 0; this.enemyIdx = 0; this.isTrainer = isTrainer;
     this.trainerName = trainerName || ""; this.canEscape = canEscape !== false;
-    this.canCatch = canCatch !== false; this.turn = 0;
+    this.canCatch = canCatch !== false; this.turn = 0; this.isGymLeader = !!isGymLeader;
     this.phase = "menu"; this.selectedMove = 0; this.selectedItem = 0;
     this.selectedCreature = 0; this.menuCursor = 0; this.submenu = null;
     this.message = ""; this.messageQueue = [];
@@ -171,7 +176,7 @@ class BattleState {
     const p = this.player, e = this.enemy;
     if (!p || !e) return;
     const pMove = p.moves[playerMoveIdx], pMD = MOVES[pMove.id];
-    const eMV = getAIMove(e, p, this.isTrainer ? AI_TRAINER : AI_WILD);
+    const eMV = getAIMove(e, p, this.isGymLeader ? AI_GYM : (this.isTrainer ? AI_TRAINER : AI_WILD));
     const eMD = MOVES[eMV.id];
     const pSpd = p.getStat(STAT_SPD), eSpd = e.getStat(STAT_SPD);
     let first, second;
@@ -181,6 +186,7 @@ class BattleState {
     else { first = "enemy"; second = "player"; }
     const log = [];
     p.flinched = false; e.flinched = false;
+    p.protected = false; e.protected = false;
 
     for (const who of [first, second]) {
       const attacker = who === "player" ? p : e;
@@ -188,6 +194,7 @@ class BattleState {
       const moveData = who === "player" ? pMD : eMD;
       const move = who === "player" ? pMove : eMV;
       if (!attacker.isAlive() || !defender.isAlive()) continue;
+      if (defender.protected) { defender.protected = false; log.push(defender.name + " protected itself!"); continue; }
       if (attacker.flinched) { attacker.flinched = false; log.push(attacker.name + " flinched!"); continue; }
       if (attacker.status === "paralyze" && Math.random() < 0.25) { log.push(attacker.name + " is fully paralyzed!"); continue; }
       if (attacker.confusionTurns > 0) {
@@ -215,6 +222,7 @@ class BattleState {
         if (effect === "super_effective") effText = " It's super effective!";
         else if (effect === "not_effective") effText = " It's not very effective...";
         else if (effect === "no_effect") effText = " It had no effect!";
+        else if (effect === "fissure_ohko") effText = " It's a one-hit KO!";
         else if (effect && effect.includes("critical")) effText = " A critical hit!";
         log.push(attacker.name + " used " + moveData.name + "!" + effText);
         if (moveData.effect === "recoil") { const r = Math.floor(damage / 3); attacker.takeDamage(r); log.push(attacker.name + " took recoil!"); }
@@ -222,6 +230,10 @@ class BattleState {
         if (status && status.startsWith("status_")) { const sn = status.slice(7); const w = { burn: "burned", freeze: "frozen", paralyze: "paralyzed", poison: "poisoned", sleep: "put to sleep" }; log.push(defender.name + " was " + (w[sn] || sn) + "!"); }
         else if (status && status.endsWith("_down")) log.push(defender.name + "'s " + status.replace("_down", "").toUpperCase() + " fell!");
         else if (status && status.endsWith("_up")) log.push(attacker.name + "'s " + status.replace("_up", "").toUpperCase() + " rose!");
+        else if (status === "atk_spd_up") log.push(attacker.name + "'s ATK and SPD rose!");
+        else if (status === "protect_active") log.push(attacker.name + " used Protect!");
+        else if (status === "sandstorm_active") log.push("A sandstorm is brewing!");
+        else if (status === "spite_active") log.push(defender.name + " is full of spite!");
       } else {
         const status = applyStatus(attacker, defender, moveData);
         if (status) {
@@ -230,6 +242,10 @@ class BattleState {
           else if (status === "leech_active") log.push(defender.name + " was seeded!");
           else if (status.startsWith("status_")) { const sn2 = status.slice(7); log.push(defender.name + " was " + ({ burn: "burned", freeze: "frozen", paralyze: "paralyzed", poison: "poisoned", sleep: "put to sleep" }[sn2] || sn2) + "!"); }
           else if (status === "confuse") log.push(defender.name + " became confused!");
+          else if (status === "atk_spd_up") log.push(attacker.name + "'s ATK and SPD rose!");
+          else if (status === "protect_active") log.push(attacker.name + " used Protect!");
+          else if (status === "sandstorm_active") log.push("A sandstorm is brewing!");
+          else if (status === "spite_active") log.push(defender.name + " is full of spite!");
         }
       }
       if (!defender.isAlive()) {
@@ -251,7 +267,33 @@ class BattleState {
       if (c && c.isAlive() && c.status) {
         if (c.status === "burn") { const d = Math.max(1, Math.floor(c.maxHP / 16)); c.takeDamage(d); this.messageQueue.push(c.name + " is hurt by its burn!"); }
         else if (c.status === "poison") { const d = Math.max(1, Math.floor(c.maxHP / 8)); c.takeDamage(d); this.messageQueue.push(c.name + " is hurt by poison!"); }
-        if (!c.isAlive()) this.messageQueue.push(c.name + " fainted!");
+        else if (c.status === "leech_seed") { const d = Math.max(1, Math.floor(c.maxHP / 8)); c.takeDamage(d); const other = c === this.player ? this.enemy : this.player; if (other && other.isAlive()) other.heal(d); this.messageQueue.push(c.name + " health is sapped by Leech Seed!"); }
+      }
+    }
+    // Sandstorm damage
+    for (const c of [this.player, this.enemy]) {
+      if (c && c.isAlive() && !c.types.includes(TYPE_EARTH) && !c.types.includes(TYPE_DRAGON)) {
+        const d = Math.max(1, Math.floor(c.maxHP / 16));
+        c.takeDamage(d);
+        this.messageQueue.push("The sandstorm rages! " + c.name + " is buffeted!");
+      }
+    }
+    // End-of-turn fainting check
+    for (const c of [this.player, this.enemy]) {
+      if (c && !c.isAlive() && !this.battleOver) {
+        this.messageQueue.push(c.name + " fainted!");
+        if (c === this.enemy) {
+          const baseXP = calcXP(c, this.playerParty.length);
+          for (const m of this.playerParty) {
+            if (!m.isAlive()) continue;
+            const xp = m === this.player ? Math.floor(baseXP * 1.5) : baseXP;
+            if (xp > 0) { const lv = m.gainXP(xp); this.messageQueue.push(m.name + " gained " + xp + " XP!"); if (lv) this.messageQueue.push(m.name + " grew to level " + m.level + "!"); }
+          }
+          if (!this.nextEnemy()) { this.playerWon = true; this.battleOver = true; this.messageQueue.push("You defeated " + this.trainerName + "!"); }
+        } else {
+          if (!this.nextPlayer()) { this.playerWon = false; this.battleOver = true; this.messageQueue.push("No more Minis!"); }
+          else this.messageQueue.push("Go, " + this.player.name + "!");
+        }
       }
     }
   }
