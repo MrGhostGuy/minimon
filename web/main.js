@@ -33,7 +33,7 @@ let pendingNameInput = false;
 let battleState = null, battlePhase = "select";
 let shopCursor = 0;
 let nameInput = "", nameCursor = 0;
-let encounterTimer = 0, encounterData = null;
+let encounterTimer = 0, encounterData = null, encounterType = "wild";
 const NAME_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
 let pokedex = {}; // { dexNum: { seen: bool, caught: bool } }
 function pokedexSee(dex) { if (!pokedex[dex]) pokedex[dex] = { seen: true, caught: false }; else pokedex[dex].seen = true; }
@@ -230,40 +230,58 @@ function executeTrade(npc) {
 }
 
 // Battle start functions
-function startWildBattle(dex, lv) {
-  encounterData = { dex, lv };
+function beginBattleTransition(type, data) {
+  encounterType = type;
+  encounterData = data;
   encounterTimer = 0;
   state = S_ENCOUNTER;
 }
-function startWildBattleNow(dex, lv) {
-  const wild = new BattleCreature(dex, lv, null, true);
-  pokedexSee(dex);
-  if (!aliveParty().length) { state = S_GAMEOVER; return; }
-  battleState = new BattleState(aliveParty(), [wild], false, "", true, true);
-  state = S_BATTLE; battlePhase = "menu"; cursor = 0;
-  battleState.message = "A wild " + wild.name + " appeared!";
+function finishBattleTransition() {
+  const type = encounterType;
+  const data = encounterData;
+  encounterData = null;
+  if (type === "wild") {
+    const wild = new BattleCreature(data.dex, data.lv, null, true);
+    pokedexSee(data.dex);
+    if (!aliveParty().length) { state = S_GAMEOVER; return; }
+    battleState = new BattleState(aliveParty(), [wild], false, "", true, true);
+    state = S_BATTLE; battlePhase = "menu"; cursor = 0;
+    battleState.message = "A wild " + wild.name + " appeared!";
+  } else if (type === "trainer") {
+    const npc = data;
+    const party = npc.party.map(([d, l]) => { pokedexSee(d); return new BattleCreature(d, l); });
+    if (!aliveParty().length) { state = S_GAMEOVER; return; }
+    battleState = new BattleState(aliveParty(), party, true, npc.name, false, false);
+    state = S_BATTLE; battlePhase = "menu"; cursor = 0;
+    battleState.message = npc.name + " wants to battle!";
+  } else if (type === "rival") {
+    const npc = data;
+    const lv = npc.rival_enc === 1 ? 14 : 20;
+    const party = [new BattleCreature(player.rivalStarter, lv)];
+    if (!aliveParty().length) { state = S_GAMEOVER; return; }
+    battleState = new BattleState(aliveParty(), party, true, npc.name, false, false);
+    state = S_BATTLE; battlePhase = "menu"; cursor = 0;
+    battleState.message = "Rival " + npc.name + " wants to battle!";
+  } else if (type === "gym") {
+    const npc = data;
+    const party = npc.party.map(([d, l]) => new BattleCreature(d, l));
+    if (!aliveParty().length) { state = S_GAMEOVER; return; }
+    battleState = new BattleState(aliveParty(), party, true, npc.name, false, false, true);
+    state = S_BATTLE; battlePhase = "menu"; cursor = 0;
+    battleState.message = "Gym Leader " + npc.name + " wants to battle!";
+  }
 }
 function startTrainerBattle(npc) {
-  const party = npc.party.map(([d, l]) => { pokedexSee(d); return new BattleCreature(d, l); });
-  if (!aliveParty().length) { state = S_GAMEOVER; return; }
-  battleState = new BattleState(aliveParty(), party, true, npc.name, false, false);
-  state = S_BATTLE; battlePhase = "menu"; cursor = 0;
-  battleState.message = npc.name + " wants to battle!";
+  beginBattleTransition("trainer", npc);
 }
 function startRivalBattle(npc) {
-  const lv = npc.rival_enc === 1 ? 14 : 20;
-  const party = [new BattleCreature(player.rivalStarter, lv)];
-  if (!aliveParty().length) { state = S_GAMEOVER; return; }
-  battleState = new BattleState(aliveParty(), party, true, npc.name, false, false);
-  state = S_BATTLE; battlePhase = "menu"; cursor = 0;
-  battleState.message = "Rival " + npc.name + " wants to battle!";
+  beginBattleTransition("rival", npc);
 }
 function startGymBattle(npc) {
-  const party = npc.party.map(([d, l]) => new BattleCreature(d, l));
-  if (!aliveParty().length) { state = S_GAMEOVER; return; }
-  battleState = new BattleState(aliveParty(), party, true, npc.name, false, false, true);
-  state = S_BATTLE; battlePhase = "menu"; cursor = 0;
-  battleState.message = "Gym Leader " + npc.name + " wants to battle!";
+  beginBattleTransition("gym", npc);
+}
+function startWildBattle(dex, lv) {
+  beginBattleTransition("wild", { dex, lv });
 }
 
 // Battle action handlers
@@ -727,7 +745,7 @@ function gameLoop(timestamp) {
   player.playTime += dt;
   if (state === S_ENCOUNTER) {
     encounterTimer += dt;
-    if (encounterTimer >= 0.7) { startWildBattleNow(encounterData.dex, encounterData.lv); encounterData = null; }
+    if (encounterTimer >= 0.7) { finishBattleTransition(); }
   }
 
   // Render

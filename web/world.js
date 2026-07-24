@@ -103,7 +103,7 @@ function createFrostHarbor(){
   m.npcs.push({x:8,y:10,type:"item_giver",name:"Fisher",dialog:["Caught something special today!","You can have it!"],facing:"down",give_item:I_TM_WGUN,give_count:1,gave_item:false});
   m.npcs.push({x:14,y:8,type:"trade_npc",name:"Trader Marina",dialog:["I'll trade you an Ice Mini for your Fire Mini!","Deal?"],facing:"left",trade_want_type:TYPE_FIRE,give_dex:32,give_name:"Reefguard",traded:false});
   m.npcs.push({x:7,y:7,type:"talker",name:"Sailor",dialog:["The harbor is beautiful at sunset.","Watch out for storms on Route 2!"]});
-  m.npcs.push({x:13,y:14,type:"talker",name:"Ice Fisher",dialog:["I fish through the ice!","Sometimes I catch Glowfin evolve forms!"]});
+  m.npcs.push({x:13,y:14,type:"talker",name:"Ice Fisher",dialog:["I fish through the ice!","Sometimes I catch Frostkit evolve forms!"]});
   m.signs.push({x:12,y:10,text:"Frost Harbor - Where ice meets sea!"});
   return m;
 }
@@ -130,7 +130,7 @@ function createCrystalCavern(){
   setT(m,10,10,TILE_HEAL);setT(m,10,5,TILE_GYM);
   setT(m,10,0,TILE_DOOR);m.doors.push({x:10,y:0,dest:6,destX:10,destY:18});
   setT(m,10,19,TILE_DOOR);m.doors.push({x:10,y:19,dest:7,destX:10,destY:1});
-  m.npcs.push({x:10,y:7,type:"gym_leader",name:"Glacius",dialog:["I am Glacius, Crystal Cavern Leader!","Feel the chill of eternity!"],facing:"down",defeated:false,party:[[24,32],[34,30]],badge:"Crystal Badge",reward:7000});
+  m.npcs.push({x:10,y:7,type:"gym_leader",name:"Frostbane",dialog:["I am Frostbane, Crystal Cavern Leader!","Feel the chill of eternity!"],facing:"down",defeated:false,party:[[24,32],[34,30]],badge:"Crystal Badge",reward:7000});
   m.npcs.push({x:10,y:11,type:"healer",name:"Nurse Joy",dialog:["Welcome to the Minimon Healing Center!","Let me heal your Minis!"],facing:"up"});
   m.npcs.push({x:6,y:10,type:"trainer",name:"Frosty",dialog:["My Ice moves are freezing!"],facing:"right",defeated:false,party:[[24,24],[34,23]]});
   m.npcs.push({x:14,y:8,type:"item_giver",name:"Gem Collector",dialog:["These crystals are mesmerizing!","Take this TM as a souvenir!"],facing:"down",give_item:I_TM_ISHARD,give_count:1,gave_item:false});
