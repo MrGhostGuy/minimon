@@ -150,7 +150,8 @@ class Renderer {
     const hasSave = tryHasSave();
     if (hasSave) this.text(240, 400, "Right-click = Continue", COL_GREEN, 12, true);
     this.text(240, 420, "Rabbit R1 Edition", COL_GRAY, 11, true);
-    this.text(240, 440, "Scroll = Navigate | Click = Select", COL_GRAY, 11, true);
+    this.text(240, 440, "Created by MrGhost (Jeff Hollaway)", COL_GRAY, 10, true);
+    this.text(240, 455, "Scroll = Navigate | Click = Select", COL_GRAY, 11, true);
   }
 
   evolveScreen(oldDex, newDex, t) {
