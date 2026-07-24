@@ -29,12 +29,12 @@ addC(5,"Tidaloom",[TYPE_WATER,TYPE_DRAGON],85,68,72,65,80,68,
   null,45,GROWTH_MEDIUM,[40,100,200]);
 
 addC(3,"Sproutling",[TYPE_GRASS],48,42,55,45,50,52,
-  [[1,"tackle"],[1,"growl"],[6,"vine_whip"],[10,"leech_seed"],[15,"razor_leaf"],
-   [20,"seed_bomb"],[25,"giga_drain"],[30,"solar_beam"]],
+  [[1,"tackle"],[1,"growl"],[5,"vine_whip"],[9,"leech_seed"],[13,"sleep_powder"],[17,"razor_leaf"],
+   [21,"seed_bomb"],[25,"giga_drain"],[30,"solar_beam"]],
   [16,6],45,GROWTH_MEDIUM,[80,200,80]);
 addC(6,"Terralith",[TYPE_GRASS,TYPE_EARTH],90,70,85,50,65,78,
   [[1,"vine_whip"],[1,"leech_seed"],[1,"earthquake"],[30,"seed_bomb"],
-   [35,"giga_drain"],[40,"stone_edge"],[45,"earthquake"],[50,"forest_wrath"]],
+   [35,"giga_drain"],[40,"stone_edge"],[45,"protect"],[50,"forest_wrath"]],
   null,45,GROWTH_MEDIUM,[60,160,60]);
 
 // ===== EARLY ROUTE =====
@@ -73,8 +73,8 @@ addC(14,"Glacius",[TYPE_ICE,TYPE_WIND],72,58,55,78,70,65,
   null,45,GROWTH_MEDIUM,[140,200,230]);
 
 addC(15,"Shadeling",[TYPE_DARK],38,45,30,50,35,28,
-  [[1,"scratch"],[1,"leer"],[5,"bite"],[10,"pursuit"],
-   [15,"shadow_sneak"]],
+  [[1,"scratch"],[1,"leer"],[5,"bite"],[9,"toxic"],
+   [13,"pursuit"],[17,"shadow_sneak"]],
   [24,16],45,GROWTH_FAST,[80,60,100]);
 addC(16,"Duskfang",[TYPE_DARK,TYPE_SPIRIT],68,78,50,80,55,48,
   [[1,"bite"],[1,"shadow_sneak"],[25,"shadow_claw"],[30,"dark_pulse"],
@@ -102,7 +102,7 @@ addC(21,"Pondling",[TYPE_WATER],40,35,40,38,42,45,
   [20,22],45,GROWTH_FAST,[80,160,200]);
 addC(22,"Nessiel",[TYPE_WATER,TYPE_SPIRIT],78,55,60,60,72,75,
   [[1,"water_pulse"],[1,"bubble"],[25,"shadow_ball"],[30,"hydro_pump"],
-   [35,"ice_beam"],[40,"spirit_break"]],
+   [35,"rest"],[40,"ice_beam"]],
   null,45,GROWTH_MEDIUM,[60,120,180]);
 
 addC(23,"Wispflame",[TYPE_FIRE,TYPE_SPIRIT],35,40,30,50,48,35,
@@ -115,8 +115,8 @@ addC(24,"Infernospirit",[TYPE_FIRE,TYPE_SPIRIT],70,65,50,80,78,55,
   null,45,GROWTH_MEDIUM,[220,100,40]);
 
 addC(25,"Thornling",[TYPE_GRASS,TYPE_DARK],42,50,55,35,38,40,
-  [[1,"vine_whip"],[1,"leer"],[5,"poison_sting"],[10,"razor_leaf"],
-   [15,"pin_missile"]],
+  [[1,"vine_whip"],[1,"leer"],[5,"stun_spore"],[9,"razor_leaf"],
+   [13,"poison_sting"],[17,"pin_missile"],[21,"seed_bomb"]],
   [28,26],45,GROWTH_FAST,[80,140,60]);
 addC(26,"Briarvain",[TYPE_GRASS,TYPE_DARK],78,80,75,55,60,62,
   [[1,"razor_leaf"],[1,"crunch"],[25,"seed_bomb"],[30,"dark_pulse"],

@@ -134,3 +134,8 @@ _m("outrage","Outrage",TYPE_DRAGON,PHYSICAL,120,100,10);
 _m("nasty_plot","Nasty Plot",TYPE_DARK,STATUS,0,0,20,"satk_up",100);
 _m("recover","Recover",TYPE_NORMAL,STATUS,0,0,10,"recover",100);
 _m("sludge_bomb","Sludge Bomb",TYPE_DARK,SPECIAL,90,100,10,"poison",30);
+_m("protect","Protect",TYPE_NORMAL,STATUS,0,0,10);
+_m("rest","Rest",TYPE_SPIRIT,STATUS,0,0,5,"recover",100);
+_m("sleep_powder","Sleep Powder",TYPE_GRASS,STATUS,0,75,15,"sleep",100);
+_m("stun_spore","Stun Spore",TYPE_GRASS,STATUS,0,75,15,"paralyze",100);
+_m("toxic","Toxic",TYPE_DARK,STATUS,0,85,10,"poison",100);

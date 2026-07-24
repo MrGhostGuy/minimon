@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Minimon - Enhanced QR Code Generator</title>
+    <script src="https://unpkg.com/qr-code-styling@1.6.0-rc.1/lib/qr-code-styling.js"></script>
+</head>
+<body style="font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; background: #f5f5f5;">
+    <div style="text-align: center;">
+        <h2 style="color: #333;">Generating Minimon Creation Code...</h2>
+        <div id="qrCode" style="margin: 20px auto;"></div>
+        <p id="status" style="color: #666;">Loading QR library...</p>
+    </div>
+    <script>
+        const gameData = {
+            title: "Minimon",
+            url: "https://mrghostguy.github.io/minimon/",
+            description: "A Mini-Collecting RPG Adventure - Catch, train, and battle with 85 unique creatures across 12 maps!",
+            iconUrl: "",
+            themeColor: "#FE5000"
+        };
+
+        function waitForLib() {
+            if (typeof QRCodeStyling === 'undefined') {
+                setTimeout(waitForLib, 100);
+                return;
+            }
+            generateQR();
+        }
+
+        function generateQR() {
+            document.getElementById('status').textContent = 'Generating QR code...';
+
+            const qrData = JSON.stringify(gameData);
+
+            const qrCodeOptions = {
+                width: 300,
+                height: 300,
+                type: "canvas",
+                data: qrData,
+                margin: 10,
+                qrOptions: {
+                    typeNumber: 0,
+                    mode: "Byte",
+                    errorCorrectionLevel: "L"
+                },
+                imageOptions: {
+                    hideBackgroundDots: true,
+                    imageSize: 0.4,
+                    margin: 20,
+                    crossOrigin: "anonymous"
+                },
+                dotsOptions: {
+                    color: "#000000",
+                    type: "rounded"
+                },
+                backgroundOptions: {
+                    color: "#ffffff"
+                },
+                cornersSquareOptions: {
+                    color: "#000000",
+                    type: "extra-rounded"
+                },
+                cornersDotOptions: {
+                    color: "#000000",
+                    type: "dot"
+                }
+            };
+
+            const qrCode = new QRCodeStyling(qrCodeOptions);
+            qrCode.append(document.getElementById('qrCode'));
+
+            setTimeout(() => {
+                downloadEnhanced(qrCode);
+            }, 500);
+        }
+
+        function downloadEnhanced(qrCode) {
+            document.getElementById('status').textContent = 'Creating enhanced PNG...';
+
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+
+            const size = 400;
+            const padding = 30;
+            const borderWidth = 4;
+
+            canvas.width = size + (padding * 2);
+            canvas.height = size + (padding * 2) + 30;
+
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            ctx.strokeStyle = '#FE5000';
+            ctx.lineWidth = borderWidth;
+            ctx.lineJoin = 'round';
+            ctx.lineCap = 'round';
+
+            const borderRadius = 15;
+            const x = borderWidth / 2;
+            const y = borderWidth / 2;
+            const w = canvas.width - borderWidth;
+            const h = canvas.height - 30 - borderWidth;
+
+            ctx.beginPath();
+            ctx.moveTo(x + borderRadius, y);
+            ctx.lineTo(x + w - borderRadius, y);
+            ctx.quadraticCurveTo(x + w, y, x + w, y + borderRadius);
+            ctx.lineTo(x + w, y + h - borderRadius);
+            ctx.quadraticCurveTo(x + w, y + h, x + w - borderRadius, y + h);
+            ctx.lineTo(x + borderRadius, y + h);
+            ctx.quadraticCurveTo(x, y + h, x, y + h - borderRadius);
+            ctx.lineTo(x, y + borderRadius);
+            ctx.quadraticCurveTo(x, y, x + borderRadius, y);
+            ctx.closePath();
+            ctx.stroke();
+
+            const qrCanvas = document.querySelector('#qrCode canvas');
+            if (qrCanvas) {
+                ctx.drawImage(qrCanvas, padding, padding, size, size);
+            }
+
+            ctx.fillStyle = '#000000';
+            ctx.font = 'bold 14px Inter, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('r1 creations', canvas.width / 2, canvas.height - 10);
+
+            const link = document.createElement('a');
+            link.download = 'Minimon-creation-code-enhanced.png';
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+
+            document.getElementById('status').innerHTML = '<b style="color:green;">Minimon Creation Code downloaded!</b><br>Display it on screen and scan with your R1.';
+        }
+
+        waitForLib();
+    </script>
+</body>
+</html>

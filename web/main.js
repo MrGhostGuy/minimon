@@ -31,17 +31,23 @@ let pendingEvolution = null, pendingStarter = null, pendingTrainer = null, pendi
 let pendingHealer = false, pendingTrade = null, pendingMoveLearn = null, pendingTM = null;
 let battleState = null, battlePhase = "select";
 let shopCursor = 0;
-const SHOP_ITEMS = [I_POTION,I_SPOTION,I_HPOTION,I_FHEAL,I_SPHERE,I_GSPHERE,I_USPHERE,I_REVIVE,I_XATK,I_XDEF,
+const SHOP_ITEMS = [
+  I_POTION,I_SPOTION,I_HPOTION,
+  I_FHEAL,
+  I_SPHERE,I_GSPHERE,I_USPHERE,
+  I_REVIVE,
+  I_XATK,I_XDEF,
   I_TM_EMBER,I_TM_WGUN,I_TM_VWHIP,I_TM_TSHOCK,I_TM_ISHARD,I_TM_BITE,I_TM_SBALL,I_TM_DCLAW,I_TMSEDGE,
   I_TM_ASLASH,I_TM_DGLEAM,I_TM_FLAMET,I_TM_HYDROP,I_TM_SOLBEAM,I_TM_THUND,I_TM_BLIZZ,I_TM_EQUAKE,
-  I_TM_CRUNCH,I_TM_RECOVER,I_TM_SDANCE];
+  I_TM_CRUNCH,I_TM_RECOVER,I_TM_SDANCE
+];
 
 // Player state
 const player = {
   x:10, y:10, facing:"down", name:"Hero", party:[], money:3000, badges:[], storyFlags:{},
   rivalName:"Luna", rivalStarter:null, starterChoice:null, stepCounter:0, playTime:0,
-  inventory:{[I_POTION]:3,[I_SPHERE]:10,[I_GSPHERE]:0,[I_USPHERE]:0,[I_MSPHERE]:0,
-    [I_FHEAL]:0,[I_REVIVE]:0,[I_XATK]:0,[I_XDEF]:0}
+  inventory:{[I_POTION]:5,[I_SPHERE]:10,[I_GSPHERE]:0,[I_USPHERE]:0,[I_MSPHERE]:0,
+    [I_FHEAL]:1,[I_REVIVE]:0,[I_XATK]:0,[I_XDEF]:0}
 };
 function hasItem(it){return(player.inventory[it]||0)>0;}
 function addItem(it,n){player.inventory[it]=(player.inventory[it]||0)+(n||1);}
@@ -53,9 +59,9 @@ function bestSphere(){if(hasItem(I_MSPHERE))return[I_MSPHERE,SPHERE_MASTER];if(h
 // === STATE HANDLERS ===
 function setDialog(msgs, speaker) { dialogQueue = msgs.slice(); dialogSpeaker = speaker || ""; nextDialog(); }
 function nextDialog() {
-  if (dialogQueue.length) { nextDialog(); return; }
-  // Check pending actions
-  if (pendingStarter) { state = S_STARTER; return; }
+  if (dialogQueue.length) { dialogCurrent = dialogQueue.shift(); return; }
+  // Queue empty - process pending actions
+  if (pendingStarter) { state = S_STARTER; cursor = 0; return; }
   if (pendingTrainer) { const npc = pendingTrainer; pendingTrainer = null; if (npc.type === "rival") startRivalBattle(npc); else startTrainerBattle(npc); return; }
   if (pendingGym) { const npc = pendingGym; pendingGym = null; startGymBattle(npc); return; }
   if (pendingHealer) { pendingHealer = false; healParty(); return; }
@@ -65,8 +71,8 @@ function nextDialog() {
   state = S_OW;
 }
 function advanceDialog() {
-  if (dialogQueue.length) { nextDialog(); return; }
-  if (pendingStarter) { state = S_STARTER; return; }
+  if (dialogQueue.length) { dialogCurrent = dialogQueue.shift(); return; }
+  if (pendingStarter) { state = S_STARTER; cursor = 0; return; }
   if (pendingTrainer) { const npc = pendingTrainer; pendingTrainer = null; if (npc.type === "rival") startRivalBattle(npc); else startTrainerBattle(npc); return; }
   if (pendingGym) { const npc = pendingGym; pendingGym = null; startGymBattle(npc); return; }
   if (pendingHealer) { pendingHealer = false; healParty(); return; }
@@ -340,9 +346,21 @@ function chooseStarter() {
   const starter = new BattleCreature(dex, 5);
   addCreature(starter);
   player.starterChoice = dex; player.storyFlags[FLAG_STARTER] = true;
-  player.rivalStarter = pendingStarter[(cursor + 1) % 3];
+  // Rival picks the type that has advantage over yours
+  const starterAdvantage = { 1: 3, 2: 1, 3: 2 };
+  player.rivalStarter = starterAdvantage[dex] || pendingStarter[(cursor + 1) % 3];
   pendingStarter = null;
-  setDialog(["You chose " + starter.name + "!"]);
+  addItem(I_SPHERE, 10);
+  addItem(I_POTION, 5);
+  addItem(I_FHEAL, 1);
+  setDialog([
+    "You chose " + starter.name + "!",
+    "Professor Sage gave you 10 Mini Balls and 5 Potions!",
+    "You also got 1 Full Heal for emergencies!",
+    "Now go out there and catch some Minis!",
+    "Remember - weaken them first, then throw a Mini Ball!",
+    "Luna is waiting for you on Route 1..."
+  ]);
 }
 
 function useTM(itemName) {
@@ -546,15 +564,23 @@ function handleKeyDown(key) {
 }
 
 function advanceIntro() {
-  setDialog(["Welcome to the world of Minimon!","You are about to embark on an adventure!","Your neighbor Luna has also just received a partner.","Choose wisely - your partner will grow with you!"]);
-  pendingStarter = [1, 3, 2]; // Fire, Grass, Water
+  setDialog([
+    "Welcome to the world of Minimon!",
+    "I'm Professor Sage. I study the mysterious creatures called Minis.",
+    "But first... what is your name?",
+    "Well then, " + player.name + "! Your adventure begins now!",
+    "Your neighbor Luna has also just received a partner Mini.",
+    "Now, choose your very first Mini wisely!",
+    "It will be your trusted partner on this journey!"
+  ]);
+  pendingStarter = [1, 2, 3]; // Fire, Water, Grass
 }
 
 // === GAME INIT ===
 function initGame() {
   player.x = 10; player.y = 10; player.facing = "down"; player.party = [];
   player.money = 3000; player.badges = []; player.storyFlags = {}; player.stepCounter = 0;
-  player.inventory = {[I_POTION]:3,[I_SPHERE]:10,[I_GSPHERE]:0,[I_USPHERE]:0,[I_MSPHERE]:0,[I_FHEAL]:0,[I_REVIVE]:0,[I_XATK]:0,[I_XDEF]:0};
+  player.inventory = {[I_POTION]:5,[I_SPHERE]:10,[I_GSPHERE]:0,[I_USPHERE]:0,[I_MSPHERE]:0,[I_FHEAL]:1,[I_REVIVE]:0,[I_XATK]:0,[I_XDEF]:0};
   currentMap = MAP_CREATORS[0]();
 }
 
@@ -609,19 +635,31 @@ function gameLoop(timestamp) {
 
 function renderStarter() {
   ctx.fillStyle = rgb(COL_BG); ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
-  R.text(240, 40, "Choose Your Partner!", COL_YELLOW, 18, true);
+  R.text(240, 30, "Professor Sage", COL_YELLOW, 16, true);
+  R.text(240, 50, "Choose your first Mini partner!", COL_WHITE, 14, true);
   const choices = pendingStarter;
   for (let i = 0; i < choices.length; i++) {
     const dex = choices[i], x = 40 + i * 160;
-    if (i === cursor) R.rect(x - 5, 80, 150, 300, COL_SELECT, 0.2);
+    if (i === cursor) R.rect(x - 5, 70, 150, 330, COL_SELECT, 0.2);
     const t = CREATURES[dex];
-    R.creatureSprite(x + 40, 120, 80, dex, 5);
-    R.text(x + 75, 220, t.name, i === cursor ? COL_YELLOW : COL_WHITE, 14, true);
-    R.text(x + 75, 240, t.types.join("/"), TYPE_COLORS[t.types[0]] || COL_GRAY, 11, true);
-    R.text(x + 75, 260, "HP:" + t.baseStats[0] + " ATK:" + t.baseStats[1], COL_GRAY, 11, true);
-    R.text(x + 75, 275, "DEF:" + t.baseStats[2] + " SPD:" + t.baseStats[3], COL_GRAY, 11, true);
+    R.creatureSprite(x + 40, 80, 80, dex, 5);
+    R.text(x + 75, 180, t.name, i === cursor ? COL_YELLOW : COL_WHITE, 14, true);
+    R.text(x + 75, 198, t.types.join("/"), TYPE_COLORS[t.types[0]] || COL_GRAY, 11, true);
+    R.text(x + 75, 216, "HP:" + t.baseStats[0] + " ATK:" + t.baseStats[1], COL_GRAY, 10, true);
+    R.text(x + 75, 230, "DEF:" + t.baseStats[2] + " SPD:" + t.baseStats[3], COL_GRAY, 10, true);
+    // Show starting moves
+    const startMoves = t.moves.filter(([lv]) => lv <= 5);
+    R.text(x + 75, 252, "Moves:", COL_LGRAY, 10, true);
+    for (let j = 0; j < startMoves.length && j < 3; j++) {
+      const mv = MOVES[startMoves[j][1]];
+      if (mv) {
+        const tc = TYPE_COLORS[mv.type] || COL_GRAY;
+        R.text(x + 75, 268 + j * 14, "  " + mv.name, tc, 10, true);
+      }
+    }
   }
-  R.text(240, 400, "Scroll = Choose | Click = Confirm", COL_GRAY, 11, true);
+  R.text(240, 410, "Scroll = Choose | Click = Confirm", COL_GRAY, 11, true);
+  R.text(240, 430, "Pick carefully - this is your partner!", COL_YELLOW, 11, true);
 }
 
 function renderOverworld() {
