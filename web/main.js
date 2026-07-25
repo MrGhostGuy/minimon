@@ -465,12 +465,11 @@ function switchBattleCreature() {
       const [damage, effect] = calcDamage(e, battleState.player, eMD);
       battleState.player.takeDamage(damage);
       if (eMV.pp > 0) eMV.pp--;
-      let effText = "";
-      if (effect === "super_effective") effText = " It's super effective!";
-      else if (effect === "not_effective") effText = " It's not very effective...";
-      else if (effect === "no_effect") effText = " It had no effect!";
-      else if (effect && effect.includes("critical")) effText = " A critical hit!";
-      battleState.addMsg(e.name + " used " + eMD.name + "!" + effText);
+      battleState.addMsg(e.name + " used " + eMD.name + "!");
+      if (effect === "super_effective") battleState.addMsg("It's super effective!");
+      else if (effect === "not_effective") battleState.addMsg("It's not very effective...");
+      else if (effect === "no_effect") battleState.addMsg("It had no effect!");
+      if (effect && effect.includes("critical")) battleState.addMsg("Critical hit!");
       // Enemy attack effects
       const eff = typeEff(eMD.type, battleState.player.types);
       R.triggerAttackFX(eMD.type, 90, 220, false, eff);
@@ -499,8 +498,10 @@ function useBattleItem() {
   } else if (name === I_FHEAL) {
     if (removeItem(name)) { battleState.player.status = null; battleState.player.confusionTurns = 0; battleState.addMsg("Status healed!"); }
   } else if ([I_SPHERE,I_GSPHERE,I_USPHERE,I_MSPHERE].includes(name)) {
+    const sphereName = { [I_SPHERE]:"Soul Sphere", [I_GSPHERE]:"Great Sphere", [I_USPHERE]:"Ultra Sphere", [I_MSPHERE]:"Master Sphere" }[name];
     const mult = { [I_SPHERE]:1, [I_GSPHERE]:1.5, [I_USPHERE]:2, [I_MSPHERE]:255 }[name];
     if (removeItem(name)) {
+      battleState.addMsg("You threw a " + sphereName + "!");
       const [caught, shakes] = attemptCatch(battleState.enemy, mult);
       R.triggerFlash([255, 255, 100], 0.4);
       if (caught) {
@@ -514,7 +515,7 @@ function useBattleItem() {
           addCreature(c);
           if (!battleState.nextEnemy()) { battleState.playerWon = true; battleState.battleOver = true; }
         }
-      } else battleState.addMsg("Broke free! (" + shakes + "/4)");
+      } else battleState.addMsg("Oh no! It broke free!");
     }
   } else if ([I_REVIVE,I_FREVIVE].includes(name)) {
     const fainted = player.party.filter(c => !c.isAlive() && c !== battleState.player);
