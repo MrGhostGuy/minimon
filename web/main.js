@@ -1058,67 +1058,316 @@ function gameLoop(timestamp) {
   else if (state === S_TM && pendingTM) R.tmSelectMenu(pendingTM.compatible, cursor, MOVES[TM_MOVES[pendingTM.itemName]]?.name, pendingTM.itemName);
   else if (state === "pokedex") renderPokedex();
   else if (state === S_GAMEOVER) {
-    R.rect(0, 0, SCREEN_W, SCREEN_H, COL_BG);
-    R.text(240, 200, "GAME OVER", COL_RED, 28, true);
-    R.text(240, 250, "Your Minis have fainted...", COL_GRAY, 14, true);
-    R.text(240, 300, "Click to try again", COL_WHITE, 14, true);
+    // Dark background with red vignette effect
+    for (var gy = 0; gy < SCREEN_H; gy++) {
+      var gr = gy / SCREEN_H;
+      var gRed = Math.floor(8 + 6 * Math.sin(gr * 3.14));
+      var gGreen = Math.floor(5 + 3 * Math.sin(gr * 3.14));
+      var gBlue = Math.floor(5 + 3 * Math.sin(gr * 3.14));
+      ctx.fillStyle = "rgb(" + gRed + "," + gGreen + "," + gBlue + ")";
+      ctx.fillRect(0, gy, SCREEN_W, 1);
+    }
+
+    // Red vignette edges
+    var vigTop = ctx.createRadialGradient(SCREEN_W / 2, SCREEN_H / 2, SCREEN_W * 0.2, SCREEN_W / 2, SCREEN_H / 2, SCREEN_W * 0.65);
+    vigTop.addColorStop(0, "rgba(0,0,0,0)");
+    vigTop.addColorStop(1, "rgba(120,15,15,0.55)");
+    ctx.fillStyle = vigTop;
+    ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
+
+    // "GAME OVER" with red text and shadow
+    ctx.save();
+    ctx.shadowColor = "rgba(180,0,0,0.8)";
+    ctx.shadowBlur = 16;
+    ctx.textAlign = "center";
+    ctx.font = "bold 32px monospace";
+    ctx.fillStyle = rgb(COL_RED);
+    ctx.fillText("GAME OVER", SCREEN_W / 2, 185);
+    ctx.restore();
+
+    // "Your Minis have fainted..."
+    R.text(240, 230, "Your Minis have fainted...", COL_GRAY, 14, true);
+
+    // Flavor text
+    R.text(240, 270, "The world fades to black...", [100, 100, 100], 12, true);
+
+    // Pulsing "Click to try again"
+    var pulse2 = 0.3 + Math.sin(time * 3) * 0.4;
+    ctx.globalAlpha = Math.max(0.1, pulse2);
+    R.text(240, 320, "Click to try again", COL_WHITE, 14, true);
+    ctx.globalAlpha = 1;
   }
 
   requestAnimationFrame(gameLoop);
 }
 
 function renderNameInput() {
-  ctx.fillStyle = rgb(COL_BG); ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
-  R.text(240, 60, "Professor Sage", COL_YELLOW, 16, true);
-  R.text(240, 90, "What is your name?", COL_WHITE, 14, true);
-  const display = nameInput + (time % 1 < 0.5 ? "_" : " ");
-  R.rect(120, 120, 240, 40, COL_MENUBG);
-  R.rect(120, 120, 240, 40, COL_LGRAY, false, true);
-  R.text(240, 145, display, COL_WHITE, 20, true);
-  const cols = 6, rows = 5, cellW = 60, cellH = 36;
-  const startX = (SCREEN_W - cols * cellW) / 2;
-  const startY = 185;
-  for (let i = 0; i < NAME_CHARS.length; i++) {
-    const c = i % cols, r = Math.floor(i / cols);
-    const x = startX + c * cellW, y = startY + r * cellH;
-    const selected = i === nameCursor;
-    if (selected) R.rect(x, y, cellW - 4, cellH - 4, COL_SELECT, 0.4);
+  const ctx = R.ctx;
+
+  // Dark gradient background (like RSE name registration)
+  for (let y = 0; y < SCREEN_H; y++) {
+    const r = y / SCREEN_H;
+    const red = Math.floor(12 + 12 * r);
+    const green = Math.floor(12 + 10 * r);
+    const blue = Math.floor(32 + 28 * r);
+    ctx.fillStyle = "rgb(" + red + "," + green + "," + blue + ")";
+    ctx.fillRect(0, y, SCREEN_W, 1);
+  }
+
+  // Professor Sage sprite on the left
+  drawNPC(ctx, 20, 38, 72, "professor");
+
+  // Name label
+  R.text(112, 50, "Professor Sage", COL_YELLOW, 16);
+  R.text(112, 68, "Name Registration", COL_LGRAY, 11);
+
+  // Pokemon-style dialog box at bottom
+  for (let y = 370; y < 470; y++) {
+    const r = (y - 370) / 100;
+    const red = Math.floor(18 + 14 * r);
+    const green = Math.floor(28 + 12 * r);
+    const blue = Math.floor(72 + 42 * r);
+    ctx.fillStyle = "rgb(" + red + "," + green + "," + blue + ")";
+    ctx.fillRect(10, y, 460, 1);
+  }
+  ctx.strokeStyle = rgb(COL_WHITE); ctx.lineWidth = 2;
+  ctx.strokeRect(10, 370, 460, 100);
+  R.text(22, 386, "Sage:", COL_YELLOW, 13);
+  R.text(22, 406, "What is your name,", COL_WHITE, 14);
+  R.text(22, 424, "trainer?", COL_WHITE, 14);
+  var arrowA = 0.4 + Math.sin(time * 4) * 0.5;
+  ctx.globalAlpha = Math.max(0, arrowA);
+  R.text(445, 456, "\u25BC", COL_WHITE, 12, true);
+  ctx.globalAlpha = 1;
+
+  // Name input box - centered, Pokemon-style border
+  var nbx = 140, nby = 110, nbw = 200, nbh = 36;
+  R.rect(nbx, nby, nbw, nbh, [15, 15, 35]);
+  ctx.strokeStyle = rgb(COL_LGRAY); ctx.lineWidth = 2;
+  ctx.strokeRect(nbx, nby, nbw, nbh);
+  ctx.strokeStyle = rgb([55, 55, 90]); ctx.lineWidth = 1;
+  ctx.strokeRect(nbx + 3, nby + 3, nbw - 6, nbh - 6);
+  var display = nameInput + (time % 1 < 0.5 ? "_" : " ");
+  R.text(nbx + nbw / 2, nby + 25, display, COL_WHITE, 18, true);
+
+  // Letter grid: 6 cols x 5 rows
+  var cols = 6, rows = 5, cellW = 56, cellH = 32;
+  var gridW = cols * cellW;
+  var startX = (SCREEN_W - gridW) / 2;
+  var startY = 160;
+
+  // Grid background
+  R.rect(startX - 4, startY - 4, gridW + 8, rows * cellH + 8, [18, 18, 38], 0.7);
+  ctx.strokeStyle = rgb([40, 40, 70]); ctx.lineWidth = 1;
+  ctx.strokeRect(startX - 4, startY - 4, gridW + 8, rows * cellH + 8);
+
+  for (var i = 0; i < NAME_CHARS.length; i++) {
+    var c = i % cols, r = Math.floor(i / cols);
+    var x = startX + c * cellW, y = startY + r * cellH;
+    var selected = i === nameCursor;
+
+    // Cell background
+    R.rect(x + 1, y + 1, cellW - 2, cellH - 2, selected ? [55, 55, 95] : [28, 28, 48]);
+
+    // Cell border
+    ctx.strokeStyle = rgb(selected ? COL_YELLOW : [45, 45, 75]);
+    ctx.lineWidth = selected ? 2 : 1;
+    ctx.strokeRect(x + 1, y + 1, cellW - 2, cellH - 2);
+
+    // Yellow glow for selected cell
+    if (selected) {
+      var glowP = 0.18 + Math.sin(time * 4) * 0.08;
+      ctx.save();
+      ctx.globalAlpha = glowP;
+      ctx.shadowColor = rgb(COL_YELLOW);
+      ctx.shadowBlur = 8;
+      ctx.fillStyle = rgb(COL_YELLOW);
+      ctx.fillRect(x + 1, y + 1, cellW - 2, cellH - 2);
+      ctx.restore();
+    }
+
     R.text(x + cellW / 2, y + cellH / 2 + 4, NAME_CHARS[i], selected ? COL_YELLOW : COL_WHITE, 14, true);
   }
-  const btnY = startY + rows * cellH + 10;
-  R.text(120, btnY + 12, "DEL", nameCursor === 26 ? COL_YELLOW : COL_LGRAY, 14, true);
-  R.text(240, btnY + 12, "OK", nameCursor === 27 ? COL_YELLOW : COL_LGRAY, 14, true);
-  R.text(360, btnY + 12, "SPACE", nameCursor === 28 ? COL_YELLOW : COL_LGRAY, 14, true);
-  R.text(240, 460, "Scroll = Move | Click = Select", COL_GRAY, 11, true);
+
+  // Buttons: DEL, OK, SPACE
+  var btnY = startY + rows * cellH + 12;
+  var btnW = 72, btnH = 28;
+  var btnSpacing = 12;
+  var totalBtnW = 3 * btnW + 2 * btnSpacing;
+  var btnStartX = (SCREEN_W - totalBtnW) / 2;
+  var btnLabels = ["DEL", "OK", "SPACE"];
+  for (var b = 0; b < 3; b++) {
+    var bx = btnStartX + b * (btnW + btnSpacing);
+    var bSel = nameCursor === 26 + b;
+    R.rect(bx, btnY, btnW, btnH, bSel ? [55, 55, 95] : [28, 28, 48]);
+    ctx.strokeStyle = rgb(bSel ? COL_YELLOW : [45, 45, 75]);
+    ctx.lineWidth = bSel ? 2 : 1;
+    ctx.strokeRect(bx, btnY, btnW, btnH);
+    R.text(bx + btnW / 2, btnY + 18, btnLabels[b], bSel ? COL_YELLOW : COL_LGRAY, 12, true);
+  }
+
+  // Help text
+  R.text(240, 462, "Scroll = Move  |  Click = Select", COL_GRAY, 11, true);
 }
 
 function renderStarter() {
-  ctx.fillStyle = rgb(COL_BG); ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
+  var ctx = R.ctx;
+
+  // Warm interior gradient (lab/room - tan/beige tones like RSE lab)
+  for (var y = 0; y < SCREEN_H; y++) {
+    var r = y / SCREEN_H;
+    var red = Math.floor(165 + 45 * r);
+    var green = Math.floor(145 + 35 * r);
+    var blue = Math.floor(105 + 25 * r);
+    ctx.fillStyle = "rgb(" + red + "," + green + "," + blue + ")";
+    ctx.fillRect(0, y, SCREEN_W, 1);
+  }
+
+  // Floor line
+  ctx.strokeStyle = rgb([130, 110, 75]); ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(0, 330); ctx.lineTo(SCREEN_W, 330); ctx.stroke();
+
+  // Professor Sage sprite top-left
+  drawNPC(ctx, 18, 22, 65, "professor");
+  R.text(98, 42, "Professor Sage", COL_YELLOW, 16);
+
+  // Pause/bag button top-right
   R.pauseButton(time);
-  R.text(240, 30, "Professor Sage", COL_YELLOW, 16, true);
-  R.text(240, 50, "Choose your first Mini partner!", COL_WHITE, 14, true);
-  const choices = pendingStarter;
-  for (let i = 0; i < choices.length; i++) {
-    const dex = choices[i], x = 40 + i * 160;
-    if (i === cursor) R.rect(x - 5, 70, 150, 330, COL_SELECT, 0.2);
-    const t = CREATURES[dex];
-    R.creatureSprite(x + 40, 80, 80, dex, 5);
-    R.text(x + 75, 180, t.name, i === cursor ? COL_YELLOW : COL_WHITE, 14, true);
-    R.text(x + 75, 198, t.types.join("/"), TYPE_COLORS[t.types[0]] || COL_GRAY, 11, true);
-    R.text(x + 75, 216, "HP:" + t.baseStats[0] + " ATK:" + t.baseStats[1], COL_GRAY, 10, true);
-    R.text(x + 75, 230, "DEF:" + t.baseStats[2] + " SPD:" + t.baseStats[3], COL_GRAY, 10, true);
-    const startMoves = t.moves.filter(([lv]) => lv <= 5);
-    R.text(x + 75, 252, "Moves:", COL_LGRAY, 10, true);
-    for (let j = 0; j < startMoves.length && j < 3; j++) {
-      const mv = MOVES[startMoves[j][1]];
-      if (mv) {
-        const tc = TYPE_COLORS[mv.type] || COL_GRAY;
-        R.text(x + 75, 268 + j * 14, "  " + mv.name, tc, 10, true);
+
+  // Pokemon-style dialog box at bottom
+  for (var dy = 370; dy < 470; dy++) {
+    var dr = (dy - 370) / 100;
+    var dRed = Math.floor(18 + 14 * dr);
+    var dGreen = Math.floor(28 + 12 * dr);
+    var dBlue = Math.floor(72 + 42 * dr);
+    ctx.fillStyle = "rgb(" + dRed + "," + dGreen + "," + dBlue + ")";
+    ctx.fillRect(10, dy, 460, 1);
+  }
+  ctx.strokeStyle = rgb(COL_WHITE); ctx.lineWidth = 2;
+  ctx.strokeRect(10, 370, 460, 100);
+  R.text(22, 386, "Sage:", COL_YELLOW, 13);
+  R.text(22, 406, "Choose your first", COL_WHITE, 14);
+  R.text(22, 424, "Mini partner!", COL_WHITE, 14);
+  var arrowA = 0.4 + Math.sin(time * 4) * 0.5;
+  ctx.globalAlpha = Math.max(0, arrowA);
+  R.text(445, 456, "\u25BC", COL_WHITE, 12, true);
+  ctx.globalAlpha = 1;
+
+  // Three Pokeballs with creatures
+  var choices = pendingStarter;
+  var pokeR = 30;
+  var spacing = 152;
+  var baseX = (SCREEN_W - spacing * (choices.length - 1)) / 2;
+  var pokeY = 225;
+
+  for (var i = 0; i < choices.length; i++) {
+    var dex = choices[i];
+    var t = CREATURES[dex];
+    var cx = baseX + i * spacing;
+    var isSel = i === cursor;
+
+    // Bounce animation for selected
+    var bounce = isSel ? Math.sin(time * 4) * 6 : 0;
+    var creatureY = pokeY - 70 + Math.floor(bounce);
+
+    // Golden glow for selected pokeball
+    if (isSel) {
+      var gp = 0.15 + Math.sin(time * 3) * 0.08;
+      ctx.save();
+      ctx.globalAlpha = gp;
+      var glowGrad = ctx.createRadialGradient(cx, pokeY, 10, cx, pokeY, 65);
+      glowGrad.addColorStop(0, rgba(COL_YELLOW, 0.7));
+      glowGrad.addColorStop(1, rgba(COL_YELLOW, 0));
+      ctx.fillStyle = glowGrad;
+      ctx.beginPath();
+      ctx.arc(cx, pokeY, 65, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+      ctx.restore();
+    }
+
+    // Creature sprite (emerging above the pokeball)
+    drawCreature(ctx, cx - 24, creatureY, 48, dex, false);
+
+    // -- Draw Pokeball --
+    // Red top half (full circle)
+    ctx.beginPath();
+    ctx.arc(cx, pokeY, pokeR, 0, Math.PI * 2);
+    ctx.fillStyle = rgb(isSel ? [230, 40, 40] : [210, 35, 35]);
+    ctx.fill();
+
+    // White bottom half (semicircle overlay)
+    ctx.beginPath();
+    ctx.moveTo(cx + pokeR, pokeY);
+    ctx.arc(cx, pokeY, pokeR, 0, Math.PI);
+    ctx.closePath();
+    ctx.fillStyle = rgb(isSel ? [248, 248, 248] : [235, 235, 235]);
+    ctx.fill();
+
+    // Outline ring
+    ctx.strokeStyle = rgb(isSel ? COL_YELLOW : [35, 35, 35]);
+    ctx.lineWidth = isSel ? 3 : 2;
+    ctx.beginPath();
+    ctx.arc(cx, pokeY, pokeR, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Center line
+    ctx.strokeStyle = rgb([35, 35, 35]);
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(cx - pokeR, pokeY);
+    ctx.lineTo(cx + pokeR, pokeY);
+    ctx.stroke();
+
+    // Button (white circle with outline)
+    ctx.beginPath();
+    ctx.arc(cx, pokeY, 7, 0, Math.PI * 2);
+    ctx.fillStyle = rgb([245, 245, 245]);
+    ctx.fill();
+    ctx.strokeStyle = rgb([35, 35, 35]);
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Inner button dot
+    ctx.beginPath();
+    ctx.arc(cx, pokeY, 3, 0, Math.PI * 2);
+    ctx.fillStyle = rgb(isSel ? COL_YELLOW : [180, 180, 180]);
+    ctx.fill();
+
+    // -- Creature info below pokeball --
+    var infoY = pokeY + pokeR + 10;
+
+    // Name
+    R.text(cx, infoY, t.name, isSel ? COL_YELLOW : COL_WHITE, 13, true);
+
+    // Type badges
+    var types = t.types;
+    var typeW = 42, typeGap = 4;
+    var totalTW = types.length * typeW + (types.length - 1) * typeGap;
+    var typeX0 = cx - totalTW / 2;
+    for (var j = 0; j < types.length; j++) {
+      var tc = TYPE_COLORS[types[j]] || COL_GRAY;
+      R.rect(typeX0 + j * (typeW + typeGap), infoY + 6, typeW, 14, tc, 0.85);
+      R.text(typeX0 + j * (typeW + typeGap) + typeW / 2, infoY + 16, types[j], COL_WHITE, 9, true);
+    }
+
+    // Base stats
+    R.text(cx, infoY + 28, "HP:" + t.baseStats[0] + " ATK:" + t.baseStats[1], COL_LGRAY, 9, true);
+    R.text(cx, infoY + 40, "DEF:" + t.baseStats[2] + " SPD:" + t.baseStats[3], COL_LGRAY, 9, true);
+
+    // Moves
+    var startMoves = t.moves.filter(function(m) { return m[0] <= 5; });
+    if (startMoves.length > 0) {
+      R.text(cx, infoY + 54, "Moves:", COL_LGRAY, 9, true);
+      for (var j2 = 0; j2 < startMoves.length && j2 < 3; j2++) {
+        var mv = MOVES[startMoves[j2][1]];
+        if (mv) {
+          var mtc = TYPE_COLORS[mv.type] || COL_GRAY;
+          R.text(cx, infoY + 66 + j2 * 12, mv.name, mtc, 9, true);
+        }
       }
     }
   }
-  R.text(240, 410, "Scroll = Choose | Click = Confirm", COL_GRAY, 11, true);
-  R.text(240, 430, "Pick carefully - this is your partner!", COL_YELLOW, 11, true);
 }
 
 function renderOverworld() {
@@ -1129,7 +1378,32 @@ function renderOverworld() {
     const info = getInteractableInfo();
     if (info) R.interactBubble(info.x * TILE + TILE / 2, info.y * TILE - 12, time);
     R.dpad(DPAD_CX, DPAD_CY, DPAD_R, DPAD_BS);
-    if (state === S_DIALOG || state === S_INTRO) R.dialogBox(dialogCurrent, dialogSpeaker);
+    if (state === S_INTRO) {
+      // Pokemon RSE-style blue gradient dialog box for intro
+      var ictx = R.ctx;
+      for (var dby = 350; dby < 470; dby++) {
+        var dbr = (dby - 350) / 120;
+        var dbRed = Math.floor(16 + 12 * dbr);
+        var dbGreen = Math.floor(24 + 10 * dbr);
+        var dbBlue = Math.floor(68 + 44 * dbr);
+        ictx.fillStyle = "rgb(" + dbRed + "," + dbGreen + "," + dbBlue + ")";
+        ictx.fillRect(10, dby, 460, 1);
+      }
+      ictx.strokeStyle = rgb(COL_WHITE); ictx.lineWidth = 2;
+      ictx.strokeRect(10, 350, 460, 120);
+      // Speaker name in yellow
+      if (dialogSpeaker) R.text(22, 368, dialogSpeaker + ":", COL_YELLOW, 13);
+      // Dialog text in white
+      var introLines = R.wrapText(dialogCurrent, 440);
+      for (var il = 0; il < Math.min(introLines.length, 4); il++) {
+        R.text(22, 388 + il * 18, introLines[il], COL_WHITE, 14);
+      }
+      // Blinking continue arrow
+      var introArrow = 0.4 + Math.sin(time * 4) * 0.5;
+      ictx.globalAlpha = Math.max(0, introArrow);
+      R.text(445, 458, "\u25BC", COL_WHITE, 12, true);
+      ictx.globalAlpha = 1;
+    } else if (state === S_DIALOG) R.dialogBox(dialogCurrent, dialogSpeaker);
     R.drawMapTransition();
   }
 }
@@ -1185,41 +1459,117 @@ function renderBattle() {
 }
 
 function renderPokedex() {
-  R.box(10, 10, 460, 460);
-  R.text(240, 30, "MINIMON POKEDEX", COL_YELLOW, 16, true);
-  const entries = Object.entries(pokedex);
-  const seen = entries.filter(([,v]) => v.seen).length;
-  const caught = entries.filter(([,v]) => v.caught).length;
-  const total = Object.keys(CREATURES).length;
-  R.text(240, 52, "Seen: " + seen + "/" + total + "  Caught: " + caught + "/" + total, COL_LGRAY, 12, true);
+  var ctx = R.ctx;
+
+  // Dark blue gradient background (like RSE Pokedex)
+  for (var py = 0; py < SCREEN_H; py++) {
+    var pr = py / SCREEN_H;
+    var pRed = Math.floor(15 + 10 * pr);
+    var pGreen = Math.floor(15 + 8 * pr);
+    var pBlue = Math.floor(35 + 30 * pr);
+    ctx.fillStyle = "rgb(" + pRed + "," + pGreen + "," + pBlue + ")";
+    ctx.fillRect(0, py, SCREEN_W, 1);
+  }
+
+  // Main box
+  R.box(10, 10, 460, 460, COL_WHITE, [20, 22, 42]);
+
+  // Title
+  R.text(240, 32, "MINIMON POKEDEX", COL_YELLOW, 16, true);
+
+  var entries = Object.entries(pokedex);
+  var seen = entries.filter(function(e) { return e[1].seen; }).length;
+  var caught = entries.filter(function(e) { return e[1].caught; }).length;
+  var total = Object.keys(CREATURES).length;
+
+  // Stats bar
+  R.text(240, 52, "Seen: " + seen + "/" + total + "   Caught: " + caught + "/" + total, COL_LGRAY, 12, true);
+
   // Progress bar
-  const barW = 400, barH = 8, barX = 40, barY = 60;
-  R.rect(barX, barY, barW, barH, COL_GRAY);
-  const fillW = Math.floor(barW * caught / Math.max(1, total));
-  if (fillW > 0) R.rect(barX, barY, fillW, barH, COL_GREEN);
-  const startY = 76;
-  for (let i = 0; i < Math.min(entries.length, 14); i++) {
-    const idx = cursor + i;
-    if (idx >= entries.length) break;
-    const [dex, data] = entries[idx];
-    const t = CREATURES[dex];
-    if (!t) continue;
-    const y = startY + i * 26;
-    if (idx === cursor) R.rect(16, y - 2, 448, 24, COL_SELECT, 0.3);
-    const num = String(dex).padStart(3, "0");
-    if (data.seen) {
-      // Draw mini sprite
-      drawCreature(R.ctx, 20, y - 2, 20, parseInt(dex), false);
-      R.text(44, y + 14, "#" + num + " " + t.name, COL_WHITE, 12);
-      R.text(200, y + 14, t.types.join("/"), TYPE_COLORS[t.types[0]] || COL_GRAY, 11);
-      const total2 = t.baseStats.reduce((a,b)=>a+b,0);
-      R.text(330, y + 14, "BST:" + total2, COL_GRAY, 10);
-      R.text(420, y + 14, data.caught ? "Caught" : "Seen", data.caught ? COL_GREEN : COL_YELLOW, 10, true);
-    } else {
-      R.text(44, y + 14, "#" + num + " ???", COL_GRAY, 12);
+  var barW = 400, barH = 10, barX = 40, barY = 62;
+  R.rect(barX, barY, barW, barH, [35, 35, 55]);
+  var fillW = Math.floor(barW * caught / Math.max(1, total));
+  if (fillW > 0) {
+    // Green gradient fill
+    for (var bx = 0; bx < fillW; bx++) {
+      var bRatio = bx / barW;
+      var bGreen = Math.floor(160 + 60 * bRatio);
+      ctx.fillStyle = "rgb(40," + bGreen + ",50)";
+      ctx.fillRect(barX + bx, barY, 1, barH);
     }
   }
-  if (entries.length > 14) R.text(240, 440, "Scroll to browse (" + (cursor+1) + "-" + Math.min(cursor+14, entries.length) + " of " + entries.length + ")", COL_GRAY, 10, true);
+  // Percentage label
+  var pctText = Math.floor(caught / Math.max(1, total) * 100) + "%";
+  R.text(barX + barW + 28, barY + 9, pctText, COL_GREEN, 10);
+
+  // Separator line
+  ctx.strokeStyle = rgb([60, 60, 90]); ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(20, 80); ctx.lineTo(460, 80); ctx.stroke();
+
+  // List entries
+  var startY = 88;
+  var rowH = 26;
+  var maxShow = 14;
+  for (var i = 0; i < Math.min(entries.length, maxShow); i++) {
+    var idx = cursor + i;
+    if (idx >= entries.length) break;
+    var dex = entries[idx][0];
+    var data = entries[idx][1];
+    var t = CREATURES[dex];
+    if (!t) continue;
+
+    var ey = startY + i * rowH;
+    var isSel = idx === cursor;
+
+    // Row background
+    if (isSel) {
+      R.rect(16, ey - 1, 448, rowH - 1, COL_SELECT, 0.25);
+    }
+
+    var num = String(dex).padStart(3, "0");
+
+    if (data.seen) {
+      // Dex number
+      R.text(24, ey + 14, "#" + num, COL_LGRAY, 11);
+
+      // Mini sprite (20px)
+      drawCreature(ctx, 62, ey - 1, 20, parseInt(dex), false);
+
+      // Name
+      R.text(88, ey + 14, t.name, isSel ? COL_YELLOW : COL_WHITE, 12);
+
+      // Type badges (compact)
+      var types = t.types;
+      var tBadgeX = 175;
+      for (var j = 0; j < types.length; j++) {
+        var tc = TYPE_COLORS[types[j]] || COL_GRAY;
+        R.rect(tBadgeX + j * 42, ey + 2, 38, 12, tc, 0.8);
+        R.text(tBadgeX + j * 42 + 19, ey + 11, types[j], COL_WHITE, 7, true);
+      }
+
+      // BST
+      var total2 = t.baseStats.reduce(function(a, b) { return a + b; }, 0);
+      R.text(350, ey + 14, "BST:" + total2, COL_GRAY, 10);
+
+      // Status
+      if (data.caught) {
+        R.text(430, ey + 14, "Caught", COL_GREEN, 10, true);
+      } else {
+        R.text(430, ey + 14, "Seen", COL_YELLOW, 10, true);
+      }
+    } else {
+      // Unseen entry
+      R.text(24, ey + 14, "#" + num + "  ???", [70, 70, 90], 12);
+
+      // Grayed-out placeholder sprite box
+      R.rect(62, ey - 1, 20, 20, [30, 30, 45], 0.5);
+    }
+  }
+
+  // Scroll indicator
+  if (entries.length > maxShow) {
+    R.text(240, 440, "Scroll to browse (" + (cursor + 1) + "-" + Math.min(cursor + maxShow, entries.length) + " of " + entries.length + ")", COL_GRAY, 10, true);
+  }
   R.text(240, 458, "Click/Right-click to go back", COL_GRAY, 10, true);
 }
 

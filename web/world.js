@@ -2,7 +2,7 @@
 const MAP_COUNT=12;
 
 function makeMap(w,h,name,encRate){
-  return{width:w,height:h,name,encRate:encRate||0.15,tiles:new Int32Array(w*h),npcs:[],signs:[],doors:[],encTable:[]};
+  return{width:w,height:h,name,encRate:encRate!==undefined?encRate:0.15,tiles:new Int32Array(w*h),npcs:[],signs:[],doors:[],encTable:[]};
 }
 function setT(m,x,y,t){if(x>=0&&x<m.width&&y>=0&&y<m.height)m.tiles[y*m.width+x]=t;}
 function getT(m,x,y){return(x>=0&&x<m.width&&y>=0&&y<m.height)?m.tiles[y*m.width+x]:TILE_WALL;}
