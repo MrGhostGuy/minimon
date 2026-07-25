@@ -137,8 +137,9 @@ function calcXP(defeated, partySize) {
 function getAIMove(creature, opponent, diff) {
   const usable = creature.moves.filter(m => m.pp > 0);
   if (!usable.length) return creature.moves[0];
-  if (diff <= AI_WILD) return usable[Math.floor(Math.random() * usable.length)];
-  if (diff >= AI_GYM) {
+  const aiDiff = diff !== undefined ? diff : AI_WILD;
+  if (aiDiff <= AI_WILD) return usable[Math.floor(Math.random() * usable.length)];
+  if (aiDiff >= AI_GYM) {
     let best = null, bestScore = -999;
     for (const mv of usable) {
       const md = MOVES[mv.id]; if (!md) continue;
@@ -148,7 +149,22 @@ function getAIMove(creature, opponent, diff) {
       if (["atk_up", "def_up", "spd_up"].includes(md.effect)) score += 10;
       if (score > bestScore) { bestScore = score; best = mv; }
     }
-    return best || usable[Math.floor(Math.random() * usable.length)];
+      return best || usable[Math.floor(Math.random() * usable.length)];
+  }
+  // AI_ROOKIE and AI_TRAINER - some intelligence
+  if (aiDiff >= AI_TRAINER) {
+    // 50% chance to pick best move, 50% random
+    if (Math.random() < 0.5) {
+      let best = null, bestScore = -999;
+      for (const mv of usable) {
+        const md = MOVES[mv.id]; if (!md) continue;
+        let score = md.power || 10;
+        const eff = typeEff(md.type, opponent.types); score *= eff;
+        if (md.effect === "recover" && creature.hp < creature.maxHP * 0.4) score += 40;
+        if (score > bestScore) { bestScore = score; best = mv; }
+      }
+      return best || usable[Math.floor(Math.random() * usable.length)];
+    }
   }
   return usable[Math.floor(Math.random() * usable.length)];
 }
@@ -157,8 +173,9 @@ class BattleState {
   constructor(playerParty, enemyParty, isTrainer, trainerName, canEscape, canCatch, isGymLeader) {
     this.playerParty = playerParty; this.enemyParty = enemyParty;
     this.playerIdx = 0; this.enemyIdx = 0; this.isTrainer = isTrainer;
-    this.trainerName = trainerName || ""; this.canEscape = canEscape !== false;
+    this.trainerName = trainerName || "";     this.canEscape = canEscape !== false;
     this.canCatch = canCatch !== false; this.turn = 0; this.isGymLeader = !!isGymLeader;
+    this.aiLevel = isGymLeader ? AI_GYM : (isTrainer ? AI_TRAINER : AI_WILD);
     this.phase = "menu"; this.selectedMove = 0; this.selectedItem = 0;
     this.selectedCreature = 0; this.menuCursor = 0; this.submenu = null;
     this.message = ""; this.messageQueue = [];
@@ -176,7 +193,7 @@ class BattleState {
     const p = this.player, e = this.enemy;
     if (!p || !e) return;
     const pMove = p.moves[playerMoveIdx], pMD = MOVES[pMove.id];
-    const eMV = getAIMove(e, p, this.isGymLeader ? AI_GYM : (this.isTrainer ? AI_TRAINER : AI_WILD));
+    const eMV = getAIMove(e, p, this.aiLevel !== undefined ? this.aiLevel : (this.isTrainer ? AI_TRAINER : AI_WILD));
     const eMD = MOVES[eMV.id];
     const pSpd = p.getStat(STAT_SPD), eSpd = e.getStat(STAT_SPD);
     let first, second;

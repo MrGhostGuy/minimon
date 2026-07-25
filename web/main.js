@@ -1,8 +1,7 @@
-// Minimon - Main Game Loop (HTML5/Canvas, R1-optimized)
+// Minimon - Main Game Loop (Enhanced with Battle Effects & QOL)
 (function() {
 "use strict";
 
-// Canvas setup
 const canvas = document.getElementById("gc");
 const ctx = canvas.getContext("2d");
 canvas.width = SCREEN_W; canvas.height = SCREEN_H;
@@ -15,7 +14,6 @@ window.addEventListener("resize", resize); resize();
 
 const R = new Renderer(ctx, SCREEN_W, SCREEN_H);
 
-// Game state
 const S_TITLE="title", S_INTRO="intro", S_OW="overworld", S_BATTLE="battle", S_MENU="menu",
 S_PARTY="party", S_BAG="bag", S_MOVES="moves", S_DIALOG="dialog", S_EVOLUTION="evolution",
 S_SHOP="shop", S_GAMEOVER="gameover", S_VICTORY="victory", S_STARTER="choose_starter",
@@ -35,9 +33,17 @@ let shopCursor = 0;
 let nameInput = "", nameCursor = 0;
 let encounterTimer = 0, encounterData = null, encounterType = "wild";
 const NAME_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
-let pokedex = {}; // { dexNum: { seen: bool, caught: bool } }
+let pokedex = {};
+let isSprinting = false;
+let stepTimer = 0;
+const STEP_DELAY_NORMAL = 0.15;
+const STEP_DELAY_SPRINT = 0.08;
 function pokedexSee(dex) { if (!pokedex[dex]) pokedex[dex] = { seen: true, caught: false }; else pokedex[dex].seen = true; }
 function pokedexCatch(dex) { pokedexSee(dex); if (pokedex[dex]) pokedex[dex].caught = true; }
+
+// Auto-save timer
+let autoSaveTimer = 0;
+const AUTO_SAVE_INTERVAL = 180; // 3 minutes
 
 function saveGame() {
   let mapIdx = 0;
@@ -77,7 +83,6 @@ function loadGame() {
     });
     pokedex = data.pokedex || {};
     currentMap = MAP_CREATORS[data.mapIdx || 0]();
-    // Restore defeated trainers
     if (data.defeatedTrainers) {
       for (const npc of currentMap.npcs) {
         if (data.defeatedTrainers.includes(npc.name)) npc.defeated = true;
@@ -100,7 +105,6 @@ const SHOP_ITEMS = [
   I_TM_CRUNCH,I_TM_RECOVER,I_TM_SDANCE
 ];
 
-// Player state
 const player = {
   x:10, y:10, facing:"down", name:"Hero", party:[], money:3000, badges:[], storyFlags:{},
   rivalName:"Luna", rivalStarter:null, starterChoice:null, stepCounter:0, playTime:0,
@@ -164,7 +168,10 @@ function movePlayer(dx, dy, facing) {
 }
 
 function changeMap(idx, x, y) {
-  if (idx >= 0 && idx < MAP_COUNT) { currentMap = MAP_CREATORS[idx](); player.x = x; player.y = y; }
+  if (idx >= 0 && idx < MAP_COUNT) {
+    R.triggerMapTransition();
+    currentMap = MAP_CREATORS[idx](); player.x = x; player.y = y;
+  }
 }
 
 function getInteractableInfo() {
@@ -196,6 +203,13 @@ function interactNPC(npc) {
   if (["trainer","rival","gym_leader"].includes(npc.type) && !npc.defeated) {
     setDialog(npc.dialog, npc.name);
     if (npc.type === "gym_leader") pendingGym = npc; else pendingTrainer = npc;
+    return;
+  }
+  // Rematch system - after defeating Elite Four, trainers can be rematched with stronger teams
+  if (["trainer","gym_leader"].includes(npc.type) && npc.defeated && npc.rematchParty && player.badges.length >= 8) {
+    setDialog(npc.rematchDialog || ["Let's battle again!"], npc.name);
+    pendingTrainer = npc;
+    npc.isRematch = true;
     return;
   }
   if (npc.type === "healer") { setDialog(npc.dialog || ["Let me heal your Minis!"], npc.name); pendingHealer = true; return; }
@@ -246,20 +260,34 @@ function finishBattleTransition() {
     if (!aliveParty().length) { state = S_GAMEOVER; return; }
     battleState = new BattleState(aliveParty(), [wild], false, "", true, true);
     state = S_BATTLE; battlePhase = "menu"; cursor = 0;
-    battleState.message = "A wild " + wild.name + " appeared!";
+    battleState.addMsg("A wild " + wild.name + " appeared!");
+    battleState.addMsg("Go, " + battleState.player.name + "!");
   } else if (type === "trainer") {
     const npc = data;
-    const party = npc.party.map(([d, l]) => { pokedexSee(d); return new BattleCreature(d, l); });
+    let party;
+    if (npc.isRematch && npc.rematchParty) {
+      party = npc.rematchParty.map(([d, l]) => { pokedexSee(d); return new BattleCreature(d, l); });
+    } else {
+      party = npc.party.map(([d, l]) => { pokedexSee(d); return new BattleCreature(d, l); });
+    }
     if (!aliveParty().length) { state = S_GAMEOVER; return; }
-    battleState = new BattleState(aliveParty(), party, true, npc.name, false, false);
+    battleState = new BattleState(aliveParty(), party, true, npc.name, false, false, npc.type === "gym_leader");
+    if (npc.aiLevel !== undefined) battleState.aiLevel = npc.aiLevel;
     state = S_BATTLE; battlePhase = "menu"; cursor = 0;
-    battleState.message = npc.name + " wants to battle!";
+    battleState.addMsg((npc.isRematch ? npc.name + " wants a rematch!" : npc.name + " wants to battle!"));
+    battleState.addMsg(npc.name + " sent out " + party[0].name + "!");
+    battleState.addMsg("Go, " + battleState.player.name + "!");
   } else if (type === "rival") {
     const npc = data;
-    const lv = npc.rival_enc === 1 ? 14 : 20;
+    const badgeCount = player.badges.length;
+    const baseLv = npc.rival_enc === 1 ? 14 : 20;
+    const lv = baseLv + badgeCount * 3;
     const party = [new BattleCreature(player.rivalStarter, lv)];
+    if (badgeCount >= 4) party.push(new BattleCreature(npc.rival_enc === 1 ? 13 : 49, lv - 2));
+    if (badgeCount >= 6) party.push(new BattleCreature(npc.rival_enc === 1 ? 23 : 39, lv - 4));
     if (!aliveParty().length) { state = S_GAMEOVER; return; }
     battleState = new BattleState(aliveParty(), party, true, npc.name, false, false);
+    battleState.aiLevel = AI_GYM;
     state = S_BATTLE; battlePhase = "menu"; cursor = 0;
     battleState.message = "Rival " + npc.name + " wants to battle!";
   } else if (type === "gym") {
@@ -267,22 +295,26 @@ function finishBattleTransition() {
     const party = npc.party.map(([d, l]) => new BattleCreature(d, l));
     if (!aliveParty().length) { state = S_GAMEOVER; return; }
     battleState = new BattleState(aliveParty(), party, true, npc.name, false, false, true);
+    if (npc.aiLevel !== undefined) battleState.aiLevel = npc.aiLevel;
     state = S_BATTLE; battlePhase = "menu"; cursor = 0;
-    battleState.message = "Gym Leader " + npc.name + " wants to battle!";
+    battleState.addMsg("Gym Leader " + npc.name + " wants to battle!");
+    battleState.addMsg(npc.name + " sent out " + party[0].name + "!");
+    battleState.addMsg("Go, " + battleState.player.name + "!");
+  } else if (type === "legendary") {
+    const dex = data.dex, lv = data.lv || 50;
+    const wild = new BattleCreature(dex, lv, null, true);
+    pokedexSee(dex);
+    if (!aliveParty().length) { state = S_GAMEOVER; return; }
+    battleState = new BattleState(aliveParty(), [wild], false, "", false, true);
+    state = S_BATTLE; battlePhase = "menu"; cursor = 0;
+    battleState.message = "A legendary " + wild.name + " appeared!";
+    battleState.isLegendary = true;
   }
 }
-function startTrainerBattle(npc) {
-  beginBattleTransition("trainer", npc);
-}
-function startRivalBattle(npc) {
-  beginBattleTransition("rival", npc);
-}
-function startGymBattle(npc) {
-  beginBattleTransition("gym", npc);
-}
-function startWildBattle(dex, lv) {
-  beginBattleTransition("wild", { dex, lv });
-}
+function startTrainerBattle(npc) { beginBattleTransition("trainer", npc); }
+function startRivalBattle(npc) { beginBattleTransition("rival", npc); }
+function startGymBattle(npc) { beginBattleTransition("gym", npc); }
+function startWildBattle(dex, lv) { beginBattleTransition("wild", { dex, lv }); }
 
 // Battle action handlers
 function selectBattleAction() {
@@ -300,8 +332,23 @@ function selectBattleAction() {
 function useBattleMove() {
   const p = battleState.player; const mv = p.moves[cursor];
   if (mv.pp <= 0) { battleState.addMsg("No PP left!"); battlePhase = "message"; return; }
+  const e = battleState.enemy;
+  const eX = 370, eY = 130; // enemy position for effects
+  const pX = 90, pY = 220; // player position for effects
+  // Store which move was used for effects
+  const moveData = MOVES[mv.id];
+  battleState._lastMoveType = moveData ? moveData.type : null;
+  battleState._lastTarget = "enemy";
   battleState.executeTurn(cursor);
+  // Trigger effects based on result
+  if (moveData && moveData.category !== STATUS) {
+    const eff = typeEff(moveData.type, e.types);
+    R.triggerAttackFX(moveData.type, eX, eY, false, eff);
+    R.addDamageNum(eX, eY - 20, "", eff > 1 ? "super_effective" : (eff < 1 ? "not_effective" : "normal"));
+  }
   if (!battleState.enemy.isAlive()) {
+    R.triggerShake(8, 0.3);
+    R.addParticles(eX, eY, "hit", 15);
     if (!battleState.nextEnemy()) {
       battleState.playerWon = true; battleState.battleOver = true;
       battleState.addMsg("You defeated " + battleState.trainerName + "!");
@@ -309,13 +356,20 @@ function useBattleMove() {
         for (const npc of currentMap.npcs) {
           if (npc.name === battleState.trainerName) {
             npc.defeated = true;
-            if (npc.reward) { player.money += npc.reward; battleState.addMsg("Got $" + npc.reward + "!"); }
-            if (npc.badge) { player.badges.push(npc.badge); battleState.addMsg("Got " + npc.badge + "!"); }
+            const reward = npc.isRematch ? Math.floor((npc.reward || 3000) * 1.5) : (npc.reward || 0);
+            if (reward) { player.money += reward; battleState.addMsg("Got $" + reward + "!"); }
+            if (npc.badge && !player.badges.includes(npc.badge)) {
+              player.badges.push(npc.badge); battleState.addMsg("Got " + npc.badge + "!");
+            }
+            if (npc.isRematch) {
+              battleState.addMsg("You won the rematch!");
+            }
           }
         }
       }
     }
   } else if (!battleState.player.isAlive()) {
+    R.triggerShake(8, 0.3);
     if (!battleState.nextPlayer()) { battleState.playerWon = false; battleState.battleOver = true; battleState.addMsg("No more Minis!"); }
     else battleState.addMsg("Go, " + battleState.player.name + "!");
   }
@@ -332,7 +386,7 @@ function switchBattleCreature() {
   // Enemy attacks after switch
   const e = battleState.enemy;
   if (e && e.isAlive() && battleState.player && battleState.player.isAlive()) {
-    const eMV = getAIMove(e, battleState.player, battleState.isTrainer ? AI_TRAINER : AI_WILD);
+    const eMV = getAIMove(e, battleState.player, battleState.aiLevel !== undefined ? battleState.aiLevel : (battleState.isTrainer ? AI_TRAINER : AI_WILD));
     const eMD = MOVES[eMV.id];
     if (eMD && eMD.category !== STATUS) {
       const [damage, effect] = calcDamage(e, battleState.player, eMD);
@@ -344,6 +398,9 @@ function switchBattleCreature() {
       else if (effect === "no_effect") effText = " It had no effect!";
       else if (effect && effect.includes("critical")) effText = " A critical hit!";
       battleState.addMsg(e.name + " used " + eMD.name + "!" + effText);
+      // Enemy attack effects
+      const eff = typeEff(eMD.type, battleState.player.types);
+      R.triggerAttackFX(eMD.type, 90, 220, false, eff);
       if (!battleState.player.isAlive()) battleState.addMsg(battleState.player.name + " fainted!");
     } else if (eMD) {
       applyStatus(e, battleState.player, eMD);
@@ -360,13 +417,19 @@ function useBattleItem() {
   const [name] = items[cursor];
   if ([I_POTION,I_SPOTION,I_HPOTION].includes(name)) {
     const amt = { [I_POTION]:20, [I_SPOTION]:60, [I_HPOTION]:200 }[name];
-    if (removeItem(name)) { battleState.player.heal(amt); battleState.addMsg("Used " + name + "! Healed " + amt + " HP!"); }
+    if (removeItem(name)) {
+      battleState.player.heal(amt);
+      battleState.addMsg("Used " + name + "! Healed " + amt + " HP!");
+      R.addParticles(90, 220, "light", 8);
+      R.addDamageNum(90, 200, "+" + amt, "heal");
+    }
   } else if (name === I_FHEAL) {
     if (removeItem(name)) { battleState.player.status = null; battleState.player.confusionTurns = 0; battleState.addMsg("Status healed!"); }
   } else if ([I_SPHERE,I_GSPHERE,I_USPHERE,I_MSPHERE].includes(name)) {
     const mult = { [I_SPHERE]:1, [I_GSPHERE]:1.5, [I_USPHERE]:2, [I_MSPHERE]:255 }[name];
     if (removeItem(name)) {
       const [caught, shakes] = attemptCatch(battleState.enemy, mult);
+      R.triggerFlash([255, 255, 100], 0.4);
       if (caught) {
         if (player.party.length >= 6) {
           battleState.addMsg("Gotcha! But your team is full! " + battleState.enemy.name + " got away!");
@@ -382,12 +445,12 @@ function useBattleItem() {
     }
   } else if ([I_REVIVE,I_FREVIVE].includes(name)) {
     const fainted = player.party.filter(c => !c.isAlive() && c !== battleState.player);
-    if (fainted.length) { const hp = name === I_REVIVE ? 1 : fainted[0].maxHP; if (removeItem(name)) { fainted[0].hp = hp; battleState.addMsg(fainted[0].name + " revived!"); } }
+    if (fainted.length) { const hp = name === I_REVIVE ? 1 : fainted[0].maxHP; if (removeItem(name)) { fainted[0].hp = hp; battleState.addMsg(fainted[0].name + " revived!"); R.addParticles(90, 220, "light", 10); } }
     else battleState.addMsg("No fainted Minis!");
   } else if (name === I_XATK) {
-    if (removeItem(name)) { battleState.player.statStages[1] = Math.min(6, battleState.player.statStages[1] + 1); battleState.addMsg(battleState.player.name + "'s ATK rose!"); }
+    if (removeItem(name)) { battleState.player.statStages[1] = Math.min(6, battleState.player.statStages[1] + 1); battleState.addMsg(battleState.player.name + "'s ATK rose!"); R.triggerFlash([255, 100, 100], 0.2); }
   } else if (name === I_XDEF) {
-    if (removeItem(name)) { battleState.player.statStages[2] = Math.min(6, battleState.player.statStages[2] + 1); battleState.addMsg(battleState.player.name + "'s DEF rose!"); }
+    if (removeItem(name)) { battleState.player.statStages[2] = Math.min(6, battleState.player.statStages[2] + 1); battleState.addMsg(battleState.player.name + "'s DEF rose!"); R.triggerFlash([100, 100, 255], 0.2); }
   }
   battlePhase = "message";
 }
@@ -425,9 +488,7 @@ function handleMoveLearn() {
   if (!pendingMoveLearn) return;
   const { creature, newMove } = pendingMoveLearn;
   const md = MOVES[newMove.id];
-  // Auto-learn if space
   if (creature.moves.length < 4) { creature.moves.push(newMove); pendingMoveLearn = null; setDialog([creature.name + " learned " + md.name + "!"]); return; }
-  // Otherwise show forget menu
   state = S_MOVES; cursor = 0;
 }
 
@@ -448,7 +509,6 @@ function chooseStarter() {
   const starter = new BattleCreature(dex, 5);
   addCreature(starter);
   player.starterChoice = dex; player.storyFlags[FLAG_STARTER] = true;
-  // Rival picks the type that has advantage over yours
   const starterAdvantage = { 1: 3, 2: 1, 3: 2 };
   player.rivalStarter = starterAdvantage[dex] || pendingStarter[(cursor + 1) % 3];
   pendingStarter = null;
@@ -457,10 +517,10 @@ function chooseStarter() {
   addItem(I_FHEAL, 1);
   setDialog([
     "You chose " + starter.name + "!",
-    "Professor Sage gave you 10 Mini Balls and 5 Potions!",
+    "Professor Sage gave you 10 Soul Spheres and 5 Potions!",
     "You also got 1 Full Heal for emergencies!",
     "Now go out there and catch some Minis!",
-    "Remember - weaken them first, then throw a Mini Ball!",
+    "Remember - weaken them first, then throw a Sphere!",
     "Luna is waiting for you on Route 1..."
   ]);
   state = S_DIALOG;
@@ -511,7 +571,10 @@ function selectParty() {
   if (cursor < player.party.length) {
     const c = player.party[cursor];
     state = S_DIALOG;
-    setDialog([c.name + " Lv." + c.level, "HP: " + c.hp + "/" + c.maxHP, "ATK: " + c.stats[1] + " DEF: " + c.stats[2], "SPD: " + c.stats[3] + " SPC: " + c.stats[4]]);
+    setDialog([c.name + " Lv." + c.level + (c.status ? " [" + c.status.toUpperCase() + "]" : ""),
+      "HP: " + c.hp + "/" + c.maxHP,
+      "ATK: " + c.stats[1] + " DEF: " + c.stats[2],
+      "SPD: " + c.stats[3] + " SATK: " + c.stats[4] + " SDEF: " + c.stats[5]]);
   }
 }
 
@@ -592,7 +655,6 @@ function handleClick(button, mx, my) {
   }
   else if (state === S_OW) {
     if (button === 1) {
-      // Check D-pad
       const dx = mx - DPAD_CX, dy = my - DPAD_CY;
       const dist = Math.sqrt(dx * dx + dy * dy);
       if (dist <= DPAD_R && dist > 8) {
@@ -655,6 +717,7 @@ function handleClick(button, mx, my) {
 
 function handleKeyDown(key) {
   if (state === S_ENCOUNTER) return;
+  if (key === "Shift") isSprinting = true;
   if (state === S_OW) {
     if (key === "m" || key === "M") { state = S_MENU; cursor = 0; }
     else if (key === "ArrowUp" || key === "w") movePlayer(0, -1, "up");
@@ -723,15 +786,12 @@ canvas.addEventListener("wheel", e => { e.preventDefault(); if (scrollCD <= 0) {
 canvas.addEventListener("mousedown", e => { e.preventDefault(); const r = canvas.getBoundingClientRect(); const x = (e.clientX - r.left) / (r.width / SCREEN_W); const y = (e.clientY - r.top) / (r.height / SCREEN_H); handleClick(e.button, x, y); }, { passive: false });
 canvas.addEventListener("contextmenu", e => e.preventDefault());
 
-// Touch support
 let touchStart = null;
 canvas.addEventListener("touchstart", e => { e.preventDefault(); const t = e.touches[0]; const r = canvas.getBoundingClientRect(); touchStart = { x: (t.clientX - r.left) / (r.width / SCREEN_W), y: (t.clientY - r.top) / (r.height / SCREEN_H), time: Date.now() }; }, { passive: false });
 canvas.addEventListener("touchend", e => { e.preventDefault(); if (!touchStart) return; const t = e.changedTouches[0]; const r = canvas.getBoundingClientRect(); const x = (t.clientX - r.left) / (r.width / SCREEN_W); const y = (t.clientY - r.top) / (r.height / SCREEN_H); const dx = x - touchStart.x, dy = y - touchStart.y; const dt = Date.now() - touchStart.time; if (Math.abs(dx) < 10 && Math.abs(dy) < 10 && dt < 300) handleClick(1, x, y); else if (dt < 300) { const dir = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? "right" : "left") : (dy > 0 ? "down" : "up"); handleScroll(dir === "up" || dir === "left" ? -1 : 1); } touchStart = null; }, { passive: false });
 
-// Keyboard
 document.addEventListener("keydown", e => { handleKeyDown(e.key); });
-
-// R1 side button simulation (right-click = back)
+document.addEventListener("keyup", e => { if (e.key === "Shift") isSprinting = false; });
 document.addEventListener("mousedown", e => { if (e.button === 2) handleClick(3, 0, 0); });
 
 // === GAME LOOP ===
@@ -743,6 +803,19 @@ function gameLoop(timestamp) {
   const dt = Math.min((timestamp - lastTime) / 1000, 0.1);
   lastTime = timestamp; time += dt; scrollCD = Math.max(0, scrollCD - dt);
   player.playTime += dt;
+
+  // Update effects
+  R.updateEffects(dt);
+
+  // Auto-save
+  if (state === S_OW) {
+    autoSaveTimer += dt;
+    if (autoSaveTimer >= AUTO_SAVE_INTERVAL) {
+      autoSaveTimer = 0;
+      saveGame();
+    }
+  }
+
   if (state === S_ENCOUNTER) {
     encounterTimer += dt;
     if (encounterTimer >= 0.7) { finishBattleTransition(); }
@@ -790,12 +863,10 @@ function renderNameInput() {
   ctx.fillStyle = rgb(COL_BG); ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
   R.text(240, 60, "Professor Sage", COL_YELLOW, 16, true);
   R.text(240, 90, "What is your name?", COL_WHITE, 14, true);
-  // Display current name with cursor
   const display = nameInput + (time % 1 < 0.5 ? "_" : " ");
   R.rect(120, 120, 240, 40, COL_MENUBG);
   R.rect(120, 120, 240, 40, COL_LGRAY, false, true);
   R.text(240, 145, display, COL_WHITE, 20, true);
-  // Letter grid (6 columns x 5 rows)
   const cols = 6, rows = 5, cellW = 60, cellH = 36;
   const startX = (SCREEN_W - cols * cellW) / 2;
   const startY = 185;
@@ -806,7 +877,6 @@ function renderNameInput() {
     if (selected) R.rect(x, y, cellW - 4, cellH - 4, COL_SELECT, 0.4);
     R.text(x + cellW / 2, y + cellH / 2 + 4, NAME_CHARS[i], selected ? COL_YELLOW : COL_WHITE, 14, true);
   }
-  // Action buttons
   const btnY = startY + rows * cellH + 10;
   R.text(120, btnY + 12, "DEL", nameCursor === 26 ? COL_YELLOW : COL_LGRAY, 14, true);
   R.text(240, btnY + 12, "OK", nameCursor === 27 ? COL_YELLOW : COL_LGRAY, 14, true);
@@ -828,7 +898,6 @@ function renderStarter() {
     R.text(x + 75, 198, t.types.join("/"), TYPE_COLORS[t.types[0]] || COL_GRAY, 11, true);
     R.text(x + 75, 216, "HP:" + t.baseStats[0] + " ATK:" + t.baseStats[1], COL_GRAY, 10, true);
     R.text(x + 75, 230, "DEF:" + t.baseStats[2] + " SPD:" + t.baseStats[3], COL_GRAY, 10, true);
-    // Show starting moves
     const startMoves = t.moves.filter(([lv]) => lv <= 5);
     R.text(x + 75, 252, "Moves:", COL_LGRAY, 10, true);
     for (let j = 0; j < startMoves.length && j < 3; j++) {
@@ -851,6 +920,7 @@ function renderOverworld() {
     if (info) R.interactBubble(info.x * TILE + TILE / 2, info.y * TILE - 12, time);
     R.dpad(DPAD_CX, DPAD_CY, DPAD_R, DPAD_BS);
     if (state === S_DIALOG || state === S_INTRO) R.dialogBox(dialogCurrent, dialogSpeaker);
+    R.drawMapTransition();
   }
 }
 
@@ -861,6 +931,7 @@ function renderBattle() {
     R.box(10, 310, 460, 80);
     const lines = R.wrapText(battleState.message, 440);
     for (let i = 0; i < Math.min(lines.length, 3); i++) R.text(20, 328 + i * 18, lines[i], COL_WHITE, 14);
+    R.text(420, 472, "Click/Scroll", COL_GRAY, 10, true);
   }
   if (battlePhase === "menu") {
     R.box(10, 400, 460, 70);
@@ -872,16 +943,34 @@ function renderBattle() {
     }
     const cx = 20 + (cursor % 2) * 230, cy = 413 + Math.floor(cursor / 2) * 28;
     R.menuCursor(cx, cy, time);
+    // Enemy info
+    if (battleState.enemy) {
+      const eHpPct = Math.ceil(battleState.enemy.hp/Math.max(1,battleState.enemy.maxHP)*100);
+      R.text(350, 445, battleState.enemy.name + " HP:" + eHpPct + "%", COL_GRAY, 10);
+      if (battleState.enemy.status) {
+        const sTxt = {burn:"BRN",poison:"PSN",paralyze:"PAR",freeze:"FRZ",sleep:"SLP"}[battleState.enemy.status]||"";
+        if (sTxt) R.text(440, 445, sTxt, COL_RED, 10, true);
+      }
+    }
+    // Player info
+    if (battleState.player) {
+      R.text(20, 445, battleState.player.name + " HP:" + battleState.player.hp + "/" + battleState.player.maxHP, COL_LGRAY, 10);
+      if (battleState.player.status) {
+        const sTxt2 = {burn:"BRN",poison:"PSN",paralyze:"PAR",freeze:"FRZ",sleep:"SLP"}[battleState.player.status]||"";
+        if (sTxt2) R.text(200, 445, sTxt2, COL_RED, 10);
+      }
+    }
   } else if (battlePhase === "moves") R.moveMenu(battleState.player.moves, cursor, battleState.player);
   else if (battlePhase === "party") R.partyMenu(player.party, cursor);
   else if (battlePhase === "bag") {
-  const items = Object.entries(player.inventory).filter(([k, v]) => v > 0 && [I_POTION,I_SPOTION,I_HPOTION,I_FHEAL,I_SPHERE,I_GSPHERE,I_USPHERE,I_MSPHERE,I_REVIVE,I_FREVIVE,I_XATK,I_XDEF].includes(k));
+    const items = Object.entries(player.inventory).filter(([k, v]) => v > 0 && [I_POTION,I_SPOTION,I_HPOTION,I_FHEAL,I_SPHERE,I_GSPHERE,I_USPHERE,I_MSPHERE,I_REVIVE,I_FREVIVE,I_XATK,I_XDEF].includes(k));
     R.box(10, 30, 460, 350); R.text(240, 48, "BAG", COL_YELLOW, 14, true);
     for (let i = 0; i < items.length; i++) {
       const [item, count] = items[i]; const y = 65 + i * 32;
       if (i === cursor) R.rect(16, y, 448, 28, COL_SELECT, 0.3);
       R.text(24, y + 18, item + " x" + count, i === cursor ? COL_WHITE : COL_LGRAY, 14);
     }
+    if (!items.length) R.text(240, 200, "No items!", COL_GRAY, 14, true);
   }
 }
 
@@ -897,6 +986,10 @@ function renderMenu() {
     const c = player.party[0];
     R.text(240, 380, c.name + " Lv." + c.level + " HP:" + c.hp + "/" + c.maxHP, COL_GRAY, 11, true);
   }
+  // Show play time
+  const mins = Math.floor(player.playTime / 60);
+  const hrs = Math.floor(mins / 60);
+  R.text(240, 400, "Play: " + hrs + "h " + (mins % 60) + "m", COL_GRAY, 10, true);
 }
 
 function renderPokedex() {
@@ -905,10 +998,15 @@ function renderPokedex() {
   const entries = Object.entries(pokedex);
   const seen = entries.filter(([,v]) => v.seen).length;
   const caught = entries.filter(([,v]) => v.caught).length;
-  R.text(240, 52, "Seen: " + seen + "/" + Object.keys(CREATURES).length + "  Caught: " + caught, COL_LGRAY, 12, true);
-  // Show list
-  const startY = 70;
-  for (let i = 0; i < Math.min(entries.length, 15); i++) {
+  const total = Object.keys(CREATURES).length;
+  R.text(240, 52, "Seen: " + seen + "/" + total + "  Caught: " + caught + "/" + total, COL_LGRAY, 12, true);
+  // Progress bar
+  const barW = 400, barH = 8, barX = 40, barY = 60;
+  R.rect(barX, barY, barW, barH, COL_GRAY);
+  const fillW = Math.floor(barW * caught / Math.max(1, total));
+  if (fillW > 0) R.rect(barX, barY, fillW, barH, COL_GREEN);
+  const startY = 76;
+  for (let i = 0; i < Math.min(entries.length, 14); i++) {
     const idx = cursor + i;
     if (idx >= entries.length) break;
     const [dex, data] = entries[idx];
@@ -917,18 +1015,20 @@ function renderPokedex() {
     const y = startY + i * 26;
     if (idx === cursor) R.rect(16, y - 2, 448, 24, COL_SELECT, 0.3);
     const num = String(dex).padStart(3, "0");
-    const status = data.caught ? " Caught" : data.seen ? " Seen" : " ???";
-    R.text(24, y + 14, "#" + num, COL_GRAY, 12);
     if (data.seen) {
-      R.text(70, y + 14, t.name, COL_WHITE, 12);
+      // Draw mini sprite
+      drawCreature(R.ctx, 20, y - 2, 20, parseInt(dex), false);
+      R.text(44, y + 14, "#" + num + " " + t.name, COL_WHITE, 12);
       R.text(200, y + 14, t.types.join("/"), TYPE_COLORS[t.types[0]] || COL_GRAY, 11);
+      const total2 = t.baseStats.reduce((a,b)=>a+b,0);
+      R.text(330, y + 14, "BST:" + total2, COL_GRAY, 10);
+      R.text(420, y + 14, data.caught ? "Caught" : "Seen", data.caught ? COL_GREEN : COL_YELLOW, 10, true);
     } else {
-      R.text(70, y + 14, "???", COL_GRAY, 12);
+      R.text(44, y + 14, "#" + num + " ???", COL_GRAY, 12);
     }
-    R.text(420, y + 14, status, data.caught ? COL_GREEN : data.seen ? COL_YELLOW : COL_GRAY, 11, true);
   }
-  if (entries.length > 15) R.text(240, 455, "Scroll to browse", COL_GRAY, 10, true);
-  R.text(240, 470, "Click/Right-click to go back", COL_GRAY, 10, true);
+  if (entries.length > 14) R.text(240, 440, "Scroll to browse (" + (cursor+1) + "-" + Math.min(cursor+14, entries.length) + " of " + entries.length + ")", COL_GRAY, 10, true);
+  R.text(240, 458, "Click/Right-click to go back", COL_GRAY, 10, true);
 }
 
 requestAnimationFrame(gameLoop);

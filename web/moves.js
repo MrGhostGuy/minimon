@@ -1,4 +1,4 @@
-// Minimon - Moves Database (104 moves)
+// Minimon - Moves Database (118 moves)
 const PHYSICAL="physical",SPECIAL="special",STATUS="status";
 const MOVES={};
 
@@ -87,7 +87,7 @@ _m("ice_beam","Ice Beam",TYPE_ICE,SPECIAL,90,100,10,"freeze",10);
 _m("blizzard","Blizzard",TYPE_ICE,SPECIAL,110,70,5,"freeze",20);
 _m("aurora_beam","Aurora Beam",TYPE_ICE,SPECIAL,65,100,20,"atk_down",10);
 
-// SPIRIT/DARK moves
+// SPIRIT/DARK
 _m("dark_pulse","Dark Pulse",TYPE_DARK,SPECIAL,80,100,15,"flinch",20);
 _m("shadow_sneak","Shadow Sneak",TYPE_SPIRIT,PHYSICAL,40,100,30,1);
 _m("shadow_claw","Shadow Claw",TYPE_SPIRIT,PHYSICAL,70,100,15,"crit_boost",100);
@@ -139,3 +139,33 @@ _m("rest","Rest",TYPE_SPIRIT,STATUS,0,0,5,"recover",100);
 _m("sleep_powder","Sleep Powder",TYPE_GRASS,STATUS,0,75,15,"sleep",100);
 _m("stun_spore","Stun Spore",TYPE_GRASS,STATUS,0,75,15,"paralyze",100);
 _m("toxic","Toxic",TYPE_DARK,STATUS,0,85,10,"poison",100);
+
+// BUG (now properly typed)
+_m("x_scissor","X-Scissor",TYPE_WIND,PHYSICAL,80,100,15);
+_m("u_turn","U-Turn",TYPE_WIND,PHYSICAL,70,100,20);
+_m("leech_life","Leech Life",TYPE_WIND,PHYSICAL,80,100,10,"recover",100);
+
+// FLYING (using Wind type)
+_m("wing_attack","Wing Attack",TYPE_WIND,PHYSICAL,60,100,20);
+_m("fly","Fly",TYPE_WIND,PHYSICAL,90,95,10);
+
+// POISON (using Dark type)
+_m("poison_jab","Poison Jab",TYPE_DARK,PHYSICAL,80,100,20,"poison",30);
+_m("venoshock","Venoshock",TYPE_DARK,SPECIAL,65,100,10,"poison",50);
+
+// MORE STATUS
+_m("bulk_up","Bulk Up",TYPE_NORMAL,STATUS,0,0,20,"def_up",100);
+_m("calm_mind","Calm Mind",TYPE_SPIRIT,STATUS,0,0,20,"satk_up",100);
+_m("rock_polish","Rock Polish",TYPE_EARTH,STATUS,0,0,20,"spd_up",100);
+
+// ===== LEGENDARY SIGNATURE MOVES =====
+_m("celestial_nova","Celestial Nova",TYPE_LIGHT,SPECIAL,150,90,5,
+  null,100);
+_m("void_eruption","Void Eruption",TYPE_DARK,SPECIAL,140,95,5,
+  null,100);
+_m("cataclysm","Cataclysm",TYPE_FIRE,PHYSICAL,160,85,5,
+  null,100);
+_m("abyssal_geyser","Abyssal Geyser",TYPE_WATER,SPECIAL,145,90,5,
+  null,100);
+_m("origin_pulse","Origin Pulse",TYPE_NORMAL,SPECIAL,130,100,5,
+  null,100);

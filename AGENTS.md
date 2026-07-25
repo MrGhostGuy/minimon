@@ -1,5 +1,18 @@
 # AGENTS.md - Minimon Project Reference
 
+## R1 App Organization Convention
+
+When creating new R1 apps, always follow this folder structure:
+
+```
+C:\Users\kency\Desktop\Rabbit R1\
+  └── [Game Name]\
+        ├── [game files...] (index.html, *.js, etc.)
+        └── [Game Name]-creation-code-enhanced.png (the QR code)
+```
+
+This keeps all R1 creations organized and ensures the authentic creation code image is always bundled with the game files for easy reinstallation.
+
 ## Rabbit R1 Creation Code Generation
 
 To create an authentic R1 creation code QR:
@@ -46,6 +59,6 @@ See `qr-gen/generate.js` for working example using `qrcode` + `canvas` packages.
 - GitHub Pages: https://mrghostguy.github.io/minimon/
 
 ## Game Design
-- 12 types, 85 creatures, 104 moves, 20 TM items, 12 maps
+- 12 types, 100 creatures, 118 moves, 20 TM items, 12 maps
 - Growth rates: GROWTH_FAST=4, GROWTH_MEDIUM=8, GROWTH_SLOW=10
 - Move cap: 4 moves per creature, forget UI when learning 5th
