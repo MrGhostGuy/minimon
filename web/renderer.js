@@ -1,4 +1,4 @@
-// Minimon - Renderer (Canvas 2D) - Enhanced with Battle Effects
+// Minimon - Renderer (Canvas 2D) - Gen 3-5 Pokemon Style
 class Renderer {
   constructor(ctx, w, h) {
     this.ctx = ctx; this.w = w; this.h = h;
@@ -6,11 +6,12 @@ class Renderer {
     this.particles = []; this.damageNums = [];
     this.flashAlpha = 0; this.flashColor = [255,255,255];
     this.statusGlow = {}; this.legendaryIntro = 0;
-    this.battleAnim = null; // {type, timer, target}
-    this.mapTransition = 0; // map transition fade
-    this.mapTransitionDir = 0; // 1=fade out, -1=fade in
-    this.hpDisplayLerp = {}; // smooth HP bar transitions
+    this.battleAnim = null;
+    this.mapTransition = 0;
+    this.mapTransitionDir = 0;
+    this.hpDisplayLerp = {};
   }
+
   clear() { this.ctx.fillStyle = rgb(COL_BG); this.ctx.fillRect(0, 0, this.w, this.h); }
 
   text(x, y, txt, color, size, center) {
@@ -105,77 +106,285 @@ class Renderer {
     this.text(420, 462, "Click/Scroll", COL_GRAY, 11);
   }
 
-  // ===== BATTLE SCENE WITH EFFECTS =====
+  // ===== TITLE SCREEN - Pokemon Gen 3-5 Style =====
+  startScreen(t) {
+    const ctx = this.ctx;
+
+    // Rich gradient background (deep blue to purple, like RSE)
+    for (let y = 0; y < SCREEN_H; y++) {
+      const r = y / SCREEN_H;
+      const red = Math.floor(8 + 22 * r);
+      const green = Math.floor(12 + 18 * r);
+      const blue = Math.floor(50 + 50 * r + 20 * Math.sin(r * 3.14));
+      ctx.fillStyle = `rgb(${red},${green},${blue})`;
+      ctx.fillRect(0, y, SCREEN_W, 1);
+    }
+
+    // Subtle starfield
+    for (let i = 0; i < 40; i++) {
+      const sx = (i * 137 + 50) % SCREEN_W;
+      const sy = (i * 97 + 30) % 200;
+      const blink = 0.3 + Math.sin(t * 2 + i * 0.7) * 0.3;
+      ctx.globalAlpha = blink;
+      ctx.fillStyle = rgb(COL_WHITE);
+      ctx.fillRect(sx, sy, 1, 1);
+    }
+    ctx.globalAlpha = 1;
+
+    // Decorative horizontal lines
+    ctx.strokeStyle = rgb([60, 80, 140]);
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(20, 65); ctx.lineTo(460, 65); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(20, 315); ctx.lineTo(460, 315); ctx.stroke();
+
+    // MINIMON title with golden metallic gradient
+    const bob = Math.sin(t * 2) * 3;
+    const titleGrad = ctx.createLinearGradient(100, 68, 100, 108);
+    titleGrad.addColorStop(0, '#FFD700');
+    titleGrad.addColorStop(0.25, '#FFA500');
+    titleGrad.addColorStop(0.5, '#FFD700');
+    titleGrad.addColorStop(0.75, '#CD7F32');
+    titleGrad.addColorStop(1, '#FFD700');
+    ctx.save();
+    ctx.shadowColor = 'rgba(255, 200, 0, 0.5)';
+    ctx.shadowBlur = 12;
+    ctx.fillStyle = titleGrad;
+    ctx.font = "bold 36px monospace";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("MINIMON", 240, 88 + Math.floor(bob));
+    ctx.restore();
+    ctx.textBaseline = "alphabetic";
+
+    // Title outline
+    ctx.save();
+    ctx.strokeStyle = rgb([180, 140, 40]);
+    ctx.lineWidth = 1;
+    ctx.font = "bold 36px monospace";
+    ctx.textAlign = "center";
+    ctx.strokeText("MINIMON", 240, 88 + Math.floor(bob));
+    ctx.restore();
+
+    // Subtitle
+    this.text(240, 118, "A Mini-Collecting RPG Adventure", COL_LGRAY, 13, true);
+
+    // 5 Ultra-Legendary creatures with glow effects
+    const show = [86, 87, 88, 89, 90];
+    for (let i = 0; i < show.length; i++) {
+      const dex = show[i];
+      const sc = 44 + Math.sin(t * 2.5 + i * 1.2) * 3;
+      const sx = 48 + i * 96;
+      const sy = 175 + Math.floor(Math.sin(t * 2 + i * 0.9) * 4);
+
+      // Legendary glow
+      const glowPulse = 0.2 + Math.sin(t * 3 + i) * 0.1;
+      const cr = CREATURES[dex];
+      const glowCol = cr ? cr.color : [255, 200, 50];
+      ctx.save();
+      ctx.globalAlpha = glowPulse;
+      const glowGrad = ctx.createRadialGradient(sx + sc / 2, sy + sc / 2, 5, sx + sc / 2, sy + sc / 2, sc * 0.7);
+      glowGrad.addColorStop(0, rgba(glowCol, 0.6));
+      glowGrad.addColorStop(1, rgba(glowCol, 0));
+      ctx.fillStyle = glowGrad;
+      ctx.beginPath();
+      ctx.arc(sx + sc / 2, sy + sc / 2, sc * 0.7, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+      ctx.restore();
+
+      drawLegendaryCreature(ctx, sx, sy, sc, dex, t);
+      if (cr) this.text(sx + sc / 2, sy + sc + 14, cr.name, COL_YELLOW, 8, true);
+    }
+
+    // "Scroll/Click to Start" pulsing text
+    const pulse = 0.5 + Math.sin(t * 3) * 0.4;
+    ctx.globalAlpha = pulse;
+    this.text(240, 260, "Scroll / Click to Start", COL_WHITE, 15, true);
+    ctx.globalAlpha = 1;
+
+    // Save indicator
+    const hasSave = tryHasSave();
+    if (hasSave) {
+      const greenPulse = 0.6 + Math.sin(t * 4) * 0.3;
+      ctx.globalAlpha = greenPulse;
+      this.text(240, 282, "Right-click = Continue", COL_GREEN, 12, true);
+      ctx.globalAlpha = 1;
+    }
+
+    // Footer
+    this.text(240, 380, "Rabbit R1 Edition", COL_GRAY, 11, true);
+    this.text(240, 396, "Created by MrGhostGuy (Jeff Hollaway)", COL_GRAY, 10, true);
+    this.text(240, 412, "Scroll = Navigate  |  Click = Select", COL_GRAY, 11, true);
+
+    // Bottom creature showcase - 8 diverse creatures in a row
+    const showcase = [1, 4, 11, 13, 39, 57, 71, 86];
+    // Showcase background
+    this.rect(0, 430, SCREEN_W, 50, [15, 18, 35], 0.8);
+    ctx.strokeStyle = rgb([50, 70, 120]); ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(0, 430); ctx.lineTo(SCREEN_W, 430); ctx.stroke();
+    for (let i = 0; i < showcase.length; i++) {
+      const dex = showcase[i];
+      const cr = CREATURES[dex];
+      if (!cr) continue;
+      const sx = 28 + i * 56;
+      const sy = 434;
+      this.creatureSprite(sx, sy, 22, dex);
+      this.text(sx + 11, sy + 26, cr.name, COL_GRAY, 6, true);
+    }
+  }
+
+  // ===== BATTLE SCENE - Pokemon RSE/FRLG Style =====
   battleScene(p, e, t) {
     const ctx = this.ctx;
-    // Apply screen shake
     ctx.save();
     if (this.shakeDur > 0) {
       ctx.translate(this.shakeX, this.shakeY);
     }
-    // Background gradient - Pokemon-style split
-    for (let y = 0; y < 240; y++) {
-      const r = y / 240;
-      const isUpper = y < 120;
-      if (isUpper) {
-        // Enemy side - darker, cooler tones
-        ctx.fillStyle = `rgb(${Math.floor(50 - 15 * r)},${Math.floor(70 - 15 * r)},${Math.floor(110 - 20 * r)})`;
-      } else {
-        // Player side - warmer tones
-        ctx.fillStyle = `rgb(${Math.floor(60 + 10 * r)},${Math.floor(85 + 5 * r)},${Math.floor(70 - 10 * r)})`;
-      }
+
+    // Sky gradient background (light blue top to green bottom, like RSE)
+    for (let y = 0; y < 280; y++) {
+      const r = y / 280;
+      const red = Math.floor(120 + 40 * r);
+      const green = Math.floor(180 - 20 * r + 40 * r * r);
+      const blue = Math.floor(220 - 100 * r);
+      ctx.fillStyle = `rgb(${red},${green},${blue})`;
       ctx.fillRect(0, y, SCREEN_W, 1);
     }
-    // Battle platforms (Pokemon-style)
-    ctx.fillStyle = rgb([80, 120, 60]); ctx.beginPath(); ctx.ellipse(110, 170, 90, 20, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = rgb([60, 100, 50]); ctx.beginPath(); ctx.ellipse(370, 175, 90, 22, 0, 0, Math.PI * 2); ctx.fill();
-    // Platform outlines
-    ctx.strokeStyle = rgb([100, 140, 70]); ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.ellipse(110, 170, 90, 20, 0, 0, Math.PI * 2); ctx.stroke();
-    ctx.strokeStyle = rgb([80, 120, 60]);
-    ctx.beginPath(); ctx.ellipse(370, 175, 90, 22, 0, 0, Math.PI * 2); ctx.stroke();
+    // Ground area
+    for (let y = 280; y < SCREEN_H; y++) {
+      const r = (y - 280) / (SCREEN_H - 280);
+      ctx.fillStyle = `rgb(${Math.floor(80 + 40 * r)},${Math.floor(140 + 20 * r)},${Math.floor(60 + 20 * r)})`;
+      ctx.fillRect(0, y, SCREEN_W, 1);
+    }
 
-    // Enemy
+    // Distant hills
+    ctx.fillStyle = rgb([90, 150, 70]);
+    ctx.beginPath();
+    ctx.moveTo(0, 260);
+    ctx.quadraticCurveTo(120, 230, 240, 255);
+    ctx.quadraticCurveTo(360, 235, 480, 258);
+    ctx.lineTo(480, 280); ctx.lineTo(0, 280);
+    ctx.fill();
+
+    // Battle platforms (Pokemon-style ovals with shading)
+    // Player platform (bottom-left)
+    ctx.fillStyle = rgb([100, 160, 70]);
+    ctx.beginPath(); ctx.ellipse(120, 320, 95, 22, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = rgb([80, 130, 55]);
+    ctx.beginPath(); ctx.ellipse(120, 322, 90, 18, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = rgb([120, 180, 80]); ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.ellipse(120, 320, 95, 22, 0, 0, Math.PI * 2); ctx.stroke();
+
+    // Enemy platform (top-right)
+    ctx.fillStyle = rgb([100, 160, 70]);
+    ctx.beginPath(); ctx.ellipse(360, 155, 85, 20, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = rgb([80, 130, 55]);
+    ctx.beginPath(); ctx.ellipse(360, 157, 80, 16, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = rgb([120, 180, 80]); ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.ellipse(360, 155, 85, 20, 0, 0, Math.PI * 2); ctx.stroke();
+
+    // Enemy Pokemon (top-right area)
     if (e) {
       const bob = Math.sin(t * 2) * 3;
-      const ex = 330, ey = 90 + Math.floor(bob);
-      // Check if legendary - draw glow
+      const ex = 325, ey = 80 + Math.floor(bob);
+      // Shadow
+      ctx.save();
+      ctx.globalAlpha = 0.3;
+      ctx.fillStyle = rgb(COL_BLACK);
+      ctx.beginPath(); ctx.ellipse(ex + 35, 168, 30, 8, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = 1;
+      ctx.restore();
+      // Sprite
       if (CREATURES[e.dex] && e.dex >= 75) {
-        drawLegendaryCreature(ctx, ex - 10, ey - 10, 100, e.dex, t);
+        drawLegendaryCreature(ctx, ex - 5, ey - 5, 80, e.dex, t);
       } else {
-        this.creatureSprite(ex, ey, 80, e.dex);
+        this.creatureSprite(ex, ey, 70, e.dex);
       }
-      // Status glow for enemy
-      this.drawStatusGlow(ctx, ex + 40, ey + 40, e.status, t);
-      this.box(300, 175, 170, 55);
-      this.text(308, 190, e.name, COL_WHITE, 12);
-      this.text(308, 205, "Lv." + e.level, COL_GRAY, 11);
-      this.text(380, 205, e.types.join("/"), TYPE_COLORS[e.types[0]] || COL_GRAY, 11);
-      this.hpBar(308, 218, 155, 6, e.hp / Math.max(1, e.maxHP));
+      this.drawStatusGlow(ctx, ex + 35, ey + 35, e.status, t);
     }
-    // Player
+
+    // Player Pokemon (bottom-left area)
     if (p) {
       const bob = Math.sin(t * 2 + 1) * 3;
-      const px2 = 40, py2 = 170 + Math.floor(bob);
+      const px2 = 55, py2 = 215 + Math.floor(bob);
+      // Shadow
+      ctx.save();
+      ctx.globalAlpha = 0.3;
+      ctx.fillStyle = rgb(COL_BLACK);
+      ctx.beginPath(); ctx.ellipse(px2 + 45, 325, 40, 10, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = 1;
+      ctx.restore();
+      // Sprite
       if (p.dex >= 75) {
-        drawLegendaryCreature(ctx, px2 - 10, py2 - 10, 120, p.dex, t);
+        drawLegendaryCreature(ctx, px2 - 5, py2 - 5, 105, p.dex, t);
       } else {
-        this.creatureSprite(px2, py2, 100, p.dex);
+        this.creatureSprite(px2, py2, 90, p.dex);
       }
-      // Status glow for player
-      this.drawStatusGlow(ctx, px2 + 50, py2 + 50, p.status, t);
-      this.box(10, 240, 210, 65);
-      this.text(18, 255, p.name, COL_WHITE, 14);
-      this.text(18, 270, "Lv." + p.level, COL_GRAY, 11);
-      this.text(90, 270, p.types.join("/"), TYPE_COLORS[p.types[0]] || COL_GRAY, 11);
-      this.hpBar(18, 288, 195, 8, p.hp / Math.max(1, p.maxHP));
-      this.text(140, 286, p.hp + "/" + p.maxHP, COL_WHITE, 11);
-      // Stat stages indicator
-      this.drawStatStages(ctx, 18, 298, p.statStages);
+      this.drawStatusGlow(ctx, px2 + 45, py2 + 45, p.status, t);
     }
-    // Draw particles
+
+    // Enemy info box (top-left, semi-transparent dark box)
+    if (e) {
+      const boxX = 10, boxY = 8, boxW = 200, boxH = 62;
+      this.rect(boxX, boxY, boxW, boxH, [20, 20, 40], 0.85);
+      this.ctx.strokeStyle = rgb(COL_WHITE); this.ctx.lineWidth = 2;
+      this.ctx.strokeRect(boxX, boxY, boxW, boxH);
+      this.text(boxX + 10, boxY + 18, e.name, COL_WHITE, 13);
+      this.text(boxX + 10, boxY + 34, "Lv." + e.level, COL_LGRAY, 11);
+      // Status badge
+      if (e.status) {
+        const sCol = {burn:[255,120,20],poison:[180,60,200],paralyze:[255,240,60],freeze:[150,220,255],sleep:[160,160,200]}[e.status]||COL_RED;
+        const sTxt = {burn:"BRN",poison:"PSN",paralyze:"PAR",freeze:"FRZ",sleep:"SLP"}[e.status]||"";
+        if (sTxt) {
+          this.rect(boxX + 100, boxY + 24, 38, 14, [30, 30, 50]);
+          this.text(boxX + 119, boxY + 35, sTxt, sCol, 9, true);
+        }
+      }
+      // HP bar
+      const hpRatio = e.hp / Math.max(1, e.maxHP);
+      const hpCol = hpRatio > 0.5 ? COL_HPG : hpRatio > 0.2 ? COL_HPY : COL_HPR;
+      this.rect(boxX + 10, boxY + 44, 180, 10, [40, 40, 50]);
+      this.rect(boxX + 10, boxY + 44, Math.floor(180 * Math.max(0, Math.min(1, hpRatio))), 10, hpCol);
+      this.ctx.strokeStyle = rgb(COL_LGRAY); this.ctx.lineWidth = 1;
+      this.ctx.strokeRect(boxX + 10, boxY + 44, 180, 10);
+      this.text(boxX + 10, boxY + 42, "HP", COL_LGRAY, 8);
+    }
+
+    // Player info box (bottom-right, semi-transparent dark box)
+    if (p) {
+      const boxX = 260, boxY = 340, boxW = 210, boxH = 78;
+      this.rect(boxX, boxY, boxW, boxH, [20, 20, 40], 0.85);
+      this.ctx.strokeStyle = rgb(COL_WHITE); this.ctx.lineWidth = 2;
+      this.ctx.strokeRect(boxX, boxY, boxW, boxH);
+      this.text(boxX + 10, boxY + 18, p.name, COL_WHITE, 14);
+      this.text(boxX + 10, boxY + 34, "Lv." + p.level, COL_LGRAY, 11);
+      // Type badge
+      this.text(boxX + 70, boxY + 34, p.types[0], TYPE_COLORS[p.types[0]] || COL_GRAY, 10);
+      // Status badge
+      if (p.status) {
+        const sCol2 = {burn:[255,120,20],poison:[180,60,200],paralyze:[255,240,60],freeze:[150,220,255],sleep:[160,160,200]}[p.status]||COL_RED;
+        const sTxt2 = {burn:"BRN",poison:"PSN",paralyze:"PAR",freeze:"FRZ",sleep:"SLP"}[p.status]||"";
+        if (sTxt2) {
+          this.rect(boxX + 130, boxY + 24, 38, 14, [30, 30, 50]);
+          this.text(boxX + 149, boxY + 35, sTxt2, sCol2, 9, true);
+        }
+      }
+      // HP bar
+      const hpRatio2 = p.hp / Math.max(1, p.maxHP);
+      const hpCol2 = hpRatio2 > 0.5 ? COL_HPG : hpRatio2 > 0.2 ? COL_HPY : COL_HPR;
+      this.rect(boxX + 10, boxY + 46, 190, 10, [40, 40, 50]);
+      this.rect(boxX + 10, boxY + 46, Math.floor(190 * Math.max(0, Math.min(1, hpRatio2))), 10, hpCol2);
+      this.ctx.strokeStyle = rgb(COL_LGRAY); this.ctx.lineWidth = 1;
+      this.ctx.strokeRect(boxX + 10, boxY + 46, 190, 10);
+      this.text(boxX + 10, boxY + 44, "HP", COL_LGRAY, 8);
+      this.text(boxX + 210, boxY + 55, p.hp + "/" + p.maxHP, COL_WHITE, 10, true);
+      // Stat stages indicator
+      this.drawStatStages(ctx, boxX + 10, boxY + 68, p.statStages);
+    }
+
+    // Particles
     this.updateParticles(ctx, t);
-    // Draw damage numbers
+    // Damage numbers
     this.updateDamageNums(ctx, t);
     // Flash overlay
     if (this.flashAlpha > 0) {
@@ -252,7 +461,7 @@ class Renderer {
     const dt = 1/30;
     for (let i = this.particles.length - 1; i >= 0; i--) {
       const p = this.particles[i];
-      p.x += p.vx; p.y += p.vy; p.vy += 0.5; // gravity
+      p.x += p.vx; p.y += p.vy; p.vy += 0.5;
       p.life -= dt;
       if (p.life <= 0) { this.particles.splice(i, 1); continue; }
       ctx.globalAlpha = Math.max(0, p.life / p.maxLife);
@@ -313,7 +522,6 @@ class Renderer {
     if (this.flashAlpha > 0) {
       this.flashAlpha = Math.max(0, this.flashAlpha - dt * 3);
     }
-    // Map transition fade
     if (this.mapTransitionDir !== 0) {
       this.mapTransition += this.mapTransitionDir * dt * 4;
       if (this.mapTransitionDir > 0 && this.mapTransition >= 1) {
@@ -339,77 +547,16 @@ class Renderer {
 
   // Trigger attack animation effects
   triggerAttackFX(moveType, targetX, targetY, isCrit, eff) {
-    // Particles based on move type
     const particleType = moveType.toLowerCase();
     this.addParticles(targetX, targetY, particleType, isCrit ? 20 : 12);
-    // Hit particles
     this.addParticles(targetX, targetY, "hit", 6);
     if (isCrit) this.addParticles(targetX, targetY, "crit", 10);
-    // Screen shake
     this.triggerShake(isCrit ? 10 : 5, 0.2);
-    // Flash
     if (eff > 1) this.triggerFlash([100, 255, 100], 0.3);
     else if (eff > 0 && eff < 1) this.triggerFlash([255, 100, 100], 0.2);
     else if (eff === 0) this.triggerFlash([128, 128, 128], 0.2);
     else this.triggerFlash([255, 255, 255], 0.2);
-    // Damage number
     this.addDamageNum(targetX, targetY, "", eff > 1 ? "super_effective" : (isCrit ? "critical" : "normal"));
-  }
-
-  startScreen(t) {
-    const ctx = this.ctx;
-    // Gradient background
-    for (let y = 0; y < SCREEN_H; y++) {
-      const r = y / SCREEN_H;
-      ctx.fillStyle = `rgb(${Math.floor(20 + 30 * r)},${Math.floor(20 + 40 * r)},${Math.floor(40 + 60 * r)})`;
-      ctx.fillRect(0, y, SCREEN_W, 1);
-    }
-    // Title with glow
-    const bob = Math.sin(t * 2) * 5;
-    const titleGrad = ctx.createLinearGradient(0, 80, 0, 120);
-    titleGrad.addColorStop(0, '#FFD700');
-    titleGrad.addColorStop(0.5, '#FF8C00');
-    titleGrad.addColorStop(1, '#FFD700');
-    ctx.fillStyle = titleGrad;
-    ctx.font = "bold 32px monospace";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText("MINIMON", 240, 100 + Math.floor(bob));
-    ctx.textBaseline = "alphabetic";
-    this.text(240, 130, "A Mini-Collecting RPG Adventure", COL_LGRAY, 14, true);
-
-    // Legendary showcase - 5 legendaries in a row, well-spaced
-    const show = [86, 87, 88, 89, 90];
-    for (let i = 0; i < show.length; i++) {
-      const dex = show[i];
-      const sc = 48 + Math.sin(t * 2 + i) * 4;
-      const sx = 48 + i * 96;
-      drawLegendaryCreature(ctx, sx, 170 + Math.floor(Math.sin(t*2+i)*3), sc, dex, t);
-      const cr = CREATURES[dex];
-      if (cr) this.text(sx + sc/2, 230, cr.name, COL_YELLOW, 9, true);
-    }
-
-    // Start prompt
-    this.text(240, 280, "Scroll/Click to Start", COL_WHITE, 16, true);
-    const hasSave = tryHasSave();
-    if (hasSave) this.text(240, 300, "Right-click = Continue", COL_GREEN, 12, true);
-
-    // Footer
-    this.text(240, 380, "Rabbit R1 Edition", COL_GRAY, 11, true);
-    this.text(240, 395, "Created by MrGhostGuy (Jeff Hollaway)", COL_GRAY, 10, true);
-    this.text(240, 410, "Scroll = Navigate | Click = Select", COL_GRAY, 11, true);
-
-    // Creature showcase at bottom - 8 creatures, 4 per row
-    const showcase = [1, 4, 11, 13, 39, 57, 71, 86];
-    for (let i = 0; i < showcase.length; i++) {
-      const dex = showcase[i];
-      const cr = CREATURES[dex];
-      if (!cr) continue;
-      const sx = 50 + (i % 4) * 100;
-      const sy = 435 + Math.floor(i / 4) * 30;
-      this.creatureSprite(sx, sy, 18, dex);
-      this.text(sx + 9, sy + 22, cr.name, COL_GRAY, 7, true);
-    }
   }
 
   evolveScreen(oldDex, newDex, t) {
@@ -422,8 +569,11 @@ class Renderer {
     this.text(240, 350, "Congratulations!", COL_WHITE, 14, true);
   }
 
+  // ===== PARTY MENU - Pokemon Style =====
   partyMenu(party, sel) {
-    this.box(10, 30, 460, 420); this.text(240, 48, "YOUR TEAM", COL_YELLOW, 14, true);
+    const ctx = this.ctx;
+    this.box(10, 30, 460, 420);
+    this.text(240, 48, "YOUR TEAM", COL_YELLOW, 14, true);
     for (let i = 0; i < party.length; i++) {
       const c = party[i]; const y = 65 + i * 65;
       if (i === sel) this.rect(16, y, 448, 60, COL_SELECT, 0.3);
@@ -435,7 +585,6 @@ class Renderer {
       this.hpBar(280, y + 20, 180, 8, c.hp / Math.max(1, c.maxHP));
       this.text(280, y + 38, "HP: " + c.hp + "/" + c.maxHP, COL_WHITE, 11);
       this.text(280, y + 52, "ATK:" + c.stats[1] + " DEF:" + c.stats[2], COL_GRAY, 11);
-      // Status indicator
       if (c.status) {
         const sCol = {burn:[255,120,20],poison:[180,60,200],paralyze:[255,240,60],freeze:[150,220,255],sleep:[160,160,200]}[c.status]||COL_RED;
         const sTxt = {burn:"BRN",poison:"PSN",paralyze:"PAR",freeze:"FRZ",sleep:"SLP"}[c.status]||c.status;
@@ -444,20 +593,64 @@ class Renderer {
     }
   }
 
+  // ===== MOVE MENU - Pokemon Style 2x2 Grid =====
   moveMenu(moves, sel, creature, newMoveName) {
-    this.box(10, 30, 460, 200);
+    const ctx = this.ctx;
+    this.box(10, 30, 460, 280);
     this.text(240, 48, newMoveName ? "Learn " + newMoveName + " - Forget which?" : "CHOOSE MOVE", COL_YELLOW, 14, true);
+
+    // PP display
+    if (creature && !newMoveName) {
+      this.text(400, 48, "PP: " + creature.moves.reduce((a, m) => a + m.pp, 0) + "/" + creature.moves.reduce((a, m) => a + m.maxPP, 0), COL_LGRAY, 10);
+    }
+
+    // 2x2 grid for 4 moves
+    const gridX = 30, gridY = 64, cellW = 210, cellH = 105;
     for (let i = 0; i < moves.length; i++) {
-      const mv = moves[i]; const y = 60 + i * 38; const md = MOVES[mv.id]; if (!md) continue;
-      if (i === sel) this.rect(16, y, 448, 34, COL_SELECT, 0.3);
-      const tc = TYPE_COLORS[md.type] || COL_GRAY; this.rect(20, y + 4, 6, 26, tc);
-      this.text(32, y + 16, md.name, i === sel ? COL_WHITE : COL_LGRAY, 14);
-      this.text(32, y + 30, "PP: " + mv.pp + "/" + mv.maxPP, COL_GRAY, 11);
-      if (md.power > 0) this.text(180, y + 16, "Pow:" + md.power, COL_LGRAY, 11);
-      this.text(180, y + 30, "Acc:" + md.accuracy + "%", COL_LGRAY, 11);
-      // Show category
-      this.text(280, y + 16, md.category === PHYSICAL ? "Phys" : md.category === SPECIAL ? "Spec" : "Status", COL_GRAY, 10);
-      // Show effect summary
+      const mv = moves[i]; const md = MOVES[mv.id]; if (!md) continue;
+      const col = i % 2, row = Math.floor(i / 2);
+      const cx = gridX + col * (cellW + 10), cy = gridY + row * (cellH + 6);
+      const isSel = i === sel;
+
+      // Type-colored background
+      const tc = TYPE_COLORS[md.type] || COL_GRAY;
+      this.rect(cx, cy, cellW, cellH, isSel ? [50, 50, 70] : [25, 25, 40]);
+
+      // Type color bar on left
+      this.rect(cx, cy, 6, cellH, tc);
+
+      // Selection highlight
+      if (isSel) {
+        this.ctx.strokeStyle = rgb(COL_YELLOW);
+        this.ctx.lineWidth = 2;
+        this.ctx.strokeRect(cx, cy, cellW, cellH);
+      } else {
+        this.ctx.strokeStyle = rgb([60, 60, 80]);
+        this.ctx.lineWidth = 1;
+        this.ctx.strokeRect(cx, cy, cellW, cellH);
+      }
+
+      // Move name
+      this.text(cx + 14, cy + 20, md.name, isSel ? COL_WHITE : COL_LGRAY, 14);
+
+      // Type badge
+      this.rect(cx + 14, cy + 32, 50, 14, tc);
+      this.text(cx + 39, cy + 43, md.type, COL_WHITE, 8, true);
+
+      // Category badge
+      const catName = md.category === PHYSICAL ? "Phys" : md.category === SPECIAL ? "Spec" : "Status";
+      const catCol = md.category === PHYSICAL ? COL_RED : md.category === SPECIAL ? COL_BLUE : COL_LGRAY;
+      this.rect(cx + 70, cy + 32, 40, 14, [40, 40, 55]);
+      this.text(cx + 90, cy + 43, catName, catCol, 8, true);
+
+      // PP
+      this.text(cx + 14, cy + 60, "PP: " + mv.pp + "/" + mv.maxPP, mv.pp > 0 ? COL_LGRAY : COL_RED, 10);
+
+      // Power & Accuracy
+      if (md.power > 0) this.text(cx + 14, cy + 74, "Pow: " + md.power, COL_LGRAY, 10);
+      this.text(cx + 14, cy + 88, "Acc: " + md.accuracy + "%", COL_LGRAY, 10);
+
+      // Effect
       if (md.effect) {
         const effDesc = {burn:"BRN",freeze:"FRZ",paralyze:"PAR",poison:"PSN",sleep:"SLP",
           flinch:"Flinch",crit_boost:"High Crit",recoil:"Recoil",recover:"Heal",
@@ -465,9 +658,16 @@ class Renderer {
           atk_up:"ATK+",def_up:"DEF+",spd_up:"SPD+",satk_up:"SP.ATK+",sdef_up:"SP.DEF+",
           atk_down:"ATK-",def_down:"DEF-",spd_down:"SPD-",satk_down:"SP.ATK-",sdef_down:"SP.DEF-",
           atk_spd_up:"ATK+SPD",protect:"Prot.",sandstorm:"Sand",spite:"Spite"}[md.effect]||md.effect;
-        this.text(360, y + 16, effDesc, COL_YELLOW, 9);
+        this.text(cx + 80, cy + 60, effDesc, COL_YELLOW, 9);
+      }
+
+      // Cursor arrow
+      if (isSel) {
+        this.menuCursor(cx - 10, cy + 10, t);
       }
     }
+
+    this.text(240, 296, "Click = Use  |  Right-click = Back", COL_GRAY, 10, true);
   }
 
   tmSelectMenu(compatible, sel, moveName, tmItemId) {
@@ -528,9 +728,7 @@ class Renderer {
     if (cur) lines.push(cur); return lines;
   }
 
-  // ===== PAUSE MENU SYSTEM =====
-
-  // Pause button (drawn on overworld HUD)
+  // ===== PAUSE MENU - Pokemon Style Blue Box =====
   pauseButton(t) {
     const ctx = this.ctx;
     const bx = 456, by = 2, bw = 20, bh = 18;
@@ -546,19 +744,18 @@ class Renderer {
     ctx.globalAlpha = 1;
   }
 
-  // Pause button hit test
   hitPauseButton(mx, my) {
     return mx >= 456 && mx <= 476 && my >= 2 && my <= 20;
   }
 
-  // Main Pause Menu (Pokemon-style trainer card + options)
+  // ===== PAUSE MENU - Pokemon Style =====
   pauseMenu(player, cursor, t) {
     const ctx = this.ctx;
     // Darken background
     ctx.globalAlpha = 0.6; ctx.fillStyle = rgb(COL_BLACK); ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
     ctx.globalAlpha = 1;
-    // Main box
-    this.box(30, 20, 420, 440);
+    // Main box with blue Pokemon-style background
+    this.box(30, 20, 420, 440, COL_WHITE, [20, 30, 60]);
     // Trainer card section
     this.box(40, 30, 400, 80, COL_LGRAY, [30, 30, 50]);
     this.text(50, 48, player.name + "'s Trainer Card", COL_YELLOW, 14);
@@ -567,7 +764,6 @@ class Renderer {
     this.text(50, 68, "Badges: " + player.badges.length + "/8", player.badges.length >= 8 ? COL_YELLOW : COL_LGRAY, 12);
     this.text(200, 68, "$" + player.money, COL_YELLOW, 12);
     this.text(320, 68, "Time: " + hrs + "h " + (mins % 60) + "m", COL_GRAY, 11);
-    // Mini party indicator
     if (player.party.length) {
       const c = player.party[0];
       this.text(50, 88, "Lead: " + c.name + " Lv." + c.level, COL_LGRAY, 11);
@@ -575,7 +771,6 @@ class Renderer {
       this.text(330, 88, "HP:" + c.hp + "/" + c.maxHP, COL_GRAY, 11);
     }
     // Badge icons
-    const badgeIcons = ["G","S","M","F","E","L","I","W"];
     const badgeNames = ["Granite","Steel","Marsh","Frost","Electric","Lava","Inferno","Wind"];
     for (let i = 0; i < 8; i++) {
       const bx = 50 + i * 46, by = 100;
@@ -583,7 +778,7 @@ class Renderer {
       this.rect(bx, by, 38, 14, has ? [180, 150, 60] : [40, 40, 50]);
       this.text(bx + 19, by + 11, badgeNames[i], has ? COL_BLACK : COL_GRAY, 7, true);
     }
-    // Options grid (3 columns, 3 rows)
+    // Options grid
     const opts = ["Party","Bag","Pokedex","Save","Load","Map","Close"];
     const cols = 3, cellW = 130, cellH = 55;
     const gridX = 55, gridY = 130;
@@ -591,13 +786,11 @@ class Renderer {
       const col = i % cols, row = Math.floor(i / cols);
       const ox = gridX + col * cellW, oy = gridY + row * cellH;
       const sel = i === cursor;
-      // Button box
       this.rect(ox, oy, 120, 45, sel ? [60, 60, 90] : [30, 30, 50]);
       this.ctx.strokeStyle = rgb(sel ? COL_YELLOW : COL_LGRAY);
       this.ctx.lineWidth = sel ? 2 : 1;
       this.ctx.strokeRect(ox, oy, 120, 45);
       if (sel) this.menuCursor(ox + 4, oy + 14, t);
-      // Icon
       const icons = {Party:"P",Bag:"B",Pokedex:"D",Save:"Sv",Load:"Lo",Map:"M",Close:"X"};
       this.text(ox + 60, oy + 18, icons[opts[i]] || "?", sel ? COL_YELLOW : COL_LGRAY, 18, true);
       this.text(ox + 60, oy + 36, opts[i], sel ? COL_YELLOW : COL_WHITE, 12, true);
@@ -607,28 +800,24 @@ class Renderer {
     const caught = typeof pokedex !== "undefined" ? Object.values(pokedex).filter(v => v.caught).length : 0;
     const seen = typeof pokedex !== "undefined" ? Object.values(pokedex).filter(v => v.seen).length : 0;
     this.text(240, 320, "Pokedex: " + seen + " seen / " + caught + " caught / " + total + " total", COL_GRAY, 11, true);
-    // Footer
     this.text(240, 440, "Scroll=Navigate  Click=Select  Right-click=Back", COL_GRAY, 10, true);
   }
 
-  // Bag Category Menu with tabs
+  // ===== BAG CATEGORY MENU - Tab-Based =====
   bagCatMenu(inventory, bagTab, cursor, t) {
     const ctx = this.ctx;
     ctx.globalAlpha = 0.6; ctx.fillStyle = rgb(COL_BLACK); ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
     ctx.globalAlpha = 1;
     this.box(20, 20, 440, 440);
     this.text(240, 38, "BAG", COL_YELLOW, 16, true);
-    // Tab definitions
     const BAG_TABS = [
       { name: "Medicine", items: ["Potion","Super Potion","Hyper Potion","Full Heal","Revive","Full Revive"] },
       { name: "Spheres", items: ["Soul Sphere","Great Sphere","Ultra Sphere","Master Sphere"] },
       { name: "TMs", items: Object.keys(TM_MOVES || {}) },
       { name: "Battle", items: ["X Attack","X Defense"] }
     ];
-    // cursor 0-3 = tabs, 4+ = items
     const isOnTab = cursor < BAG_TABS.length;
     const itemCursor = Math.max(0, cursor - BAG_TABS.length);
-    // Draw tabs
     const tabW = 100;
     const tabStartX = 30;
     for (let i = 0; i < BAG_TABS.length; i++) {
@@ -642,10 +831,8 @@ class Renderer {
       this.text(tx + tabW / 2, 65, BAG_TABS[i].name, isSel ? COL_YELLOW : (isActive ? COL_WHITE : COL_LGRAY), 10, true);
       if (isSel && isOnTab) this.menuCursor(tx + 2, 55, t);
     }
-    // Tab underline for active tab
     const activeTabX = tabStartX + bagTab * (tabW + 5);
     this.rect(activeTabX, 72, tabW, 2, COL_YELLOW);
-    // Item list
     const items = BAG_TABS[bagTab].items.filter(name => (inventory[name] || 0) > 0);
     const listY = 80;
     this.box(30, listY, 420, 340, COL_WHITE, [20, 20, 35]);
@@ -660,7 +847,6 @@ class Renderer {
         const y = listY + 10 + (i - offset) * 34;
         const sel = i === itemCursor && !isOnTab;
         if (sel) this.rect(36, y, 408, 30, COL_SELECT, 0.3);
-        // Item type color indicator
         let itemCol = COL_LGRAY;
         if (bagTab === 0) itemCol = COL_GREEN;
         else if (bagTab === 1) itemCol = [100, 180, 255];
@@ -670,7 +856,6 @@ class Renderer {
         this.text(48, y + 14, name, sel ? COL_WHITE : COL_LGRAY, 13);
         this.text(400, y + 14, "x" + count, sel ? COL_YELLOW : COL_GRAY, 12, true);
         if (sel) this.menuCursor(38, y + 8, t);
-        // Show description hint for selected item
         if (sel) {
           const desc = this.getItemDesc(name);
           this.text(48, y + 28, desc, COL_GRAY, 9);
@@ -703,17 +888,15 @@ class Renderer {
     return "";
   }
 
-  // Use Item Target Selection (for overworld item use)
+  // Use Item Target Selection
   useItemTargetMenu(party, itemName, cursor, t) {
     const ctx = this.ctx;
     ctx.globalAlpha = 0.6; ctx.fillStyle = rgb(COL_BLACK); ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
     ctx.globalAlpha = 1;
     this.box(40, 60, 400, 380);
     this.text(240, 78, "Use " + itemName + " on:", COL_YELLOW, 14, true);
-    // Determine valid target filter
     const isRevive = [I_REVIVE, I_FREVIVE].includes(itemName);
     const isPotion = [I_POTION, I_SPOTION, I_HPOTION].includes(itemName);
-    // Skip to first valid target
     let validCursor = cursor;
     for (let tries = 0; tries < party.length; tries++) {
       const c = party[validCursor % party.length];
@@ -748,13 +931,13 @@ class Renderer {
     this.text(240, 430, "Scroll=Select  Click=Use  Right-click=Cancel", COL_GRAY, 10, true);
   }
 
-  // Party Detail with stats + moves
+  // ===== PARTY DETAIL - Full Summary =====
   partyDetailMenu(party, cursor, t, mode) {
     const ctx = this.ctx;
     ctx.globalAlpha = 0.6; ctx.fillStyle = rgb(COL_BLACK); ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
     ctx.globalAlpha = 1;
     this.box(10, 10, 460, 460);
-    // Left side: party list (slim)
+    // Left side: party list
     this.box(16, 16, 120, 448, COL_WHITE, [25, 25, 40]);
     this.text(76, 32, "PARTY", COL_YELLOW, 10, true);
     for (let i = 0; i < party.length; i++) {
@@ -772,7 +955,7 @@ class Renderer {
         this.rect(28, y + 54, 12, 6, sCol);
       }
     }
-    // Right side: detail of selected creature
+    // Right side: detail
     if (cursor < party.length) {
       const c = party[cursor];
       const rx = 145, ry = 16, rw = 318, rh = 448;
@@ -793,7 +976,6 @@ class Renderer {
         const sy = ry + 100 + i * 16;
         this.text(rx + 10, sy + 10, statNames[i], statCols[i], 10);
         this.text(rx + 50, sy + 10, "" + c.stats[i + 1], COL_WHITE, 10);
-        // Stat bar
         const statRatio = Math.min(1, c.stats[i + 1] / 200);
         this.rect(rx + 85, sy + 4, 80, 8, [40, 40, 50]);
         this.rect(rx + 85, sy + 4, Math.floor(80 * statRatio), 8, statCols[i]);
@@ -838,7 +1020,6 @@ class Renderer {
     ctx.globalAlpha = 1;
     this.box(20, 20, 440, 440);
     this.text(240, 38, "WORLD MAP", COL_YELLOW, 16, true);
-    // Map layout - simplified node map
     const locations = [
       { name: "Starter Town", x: 240, y: 400, desc: "Your hometown" },
       { name: "Route 1", x: 240, y: 350, desc: "A peaceful path" },
@@ -853,11 +1034,9 @@ class Renderer {
       { name: "Elite Hall", x: 380, y: 75, desc: "Elite Four" },
       { name: "Deep Pit", x: 100, y: 130, desc: "Dark abyss" }
     ];
-    // Connections (index pairs)
     const connections = [
       [0,1],[1,2],[2,3],[3,4],[3,5],[3,6],[5,7],[7,8],[8,9],[8,10],[4,11]
     ];
-    // Draw connections
     ctx.strokeStyle = rgb([80, 80, 100]); ctx.lineWidth = 2;
     for (const [a, b] of connections) {
       ctx.beginPath();
@@ -865,15 +1044,12 @@ class Renderer {
       ctx.lineTo(locations[b].x, locations[b].y);
       ctx.stroke();
     }
-    // Find current location by name
     let curIdx = locations.findIndex(l => l.name === currentMapName);
-    // Draw nodes
     for (let i = 0; i < locations.length; i++) {
       const loc = locations[i];
       const isCurrent = i === curIdx;
       const isCursor = i === cursor;
       const nodeR = isCurrent ? 10 : 7;
-      // Glow for current
       if (isCurrent) {
         const pulse = 0.3 + Math.sin(t * 4) * 0.15;
         ctx.globalAlpha = pulse;
@@ -881,21 +1057,18 @@ class Renderer {
         ctx.beginPath(); ctx.arc(loc.x, loc.y, nodeR + 6, 0, Math.PI * 2); ctx.fill();
         ctx.globalAlpha = 1;
       }
-      // Node
       ctx.fillStyle = rgb(isCurrent ? COL_GREEN : (isCursor ? COL_YELLOW : COL_LGRAY));
       ctx.beginPath(); ctx.arc(loc.x, loc.y, nodeR, 0, Math.PI * 2); ctx.fill();
       if (isCursor) {
         ctx.strokeStyle = rgb(COL_YELLOW); ctx.lineWidth = 2;
         ctx.beginPath(); ctx.arc(loc.x, loc.y, nodeR + 3, 0, Math.PI * 2); ctx.stroke();
       }
-      // Label
       const labelCol = isCurrent ? COL_GREEN : (isCursor ? COL_YELLOW : COL_WHITE);
       this.text(loc.x, loc.y + nodeR + 14, loc.name, labelCol, 9, true);
       if (isCursor) {
         this.text(loc.x, loc.y + nodeR + 26, loc.desc, COL_GRAY, 8, true);
       }
     }
-    // Player marker
     if (curIdx >= 0) {
       const px = locations[curIdx].x, py = locations[curIdx].y;
       const bob = Math.sin(t * 4) * 2;

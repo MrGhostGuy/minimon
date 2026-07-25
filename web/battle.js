@@ -226,7 +226,7 @@ class BattleState {
       if (!moveData) continue;
       if (move.pp > 0) move.pp--;
       const hit = moveData.accuracy === 0 || moveData.id === "swift" ? true : Math.random() * 100 <= moveData.accuracy;
-      if (!hit) { log.push(attacker.name + "'s " + moveData.name + " missed!"); continue; }
+      if (!hit) { log.push("The attack missed!"); continue; }
       const [damage, effect] = calcDamage(attacker, defender, moveData);
       if (moveData.category !== STATUS) {
         defender.takeDamage(damage);
@@ -235,13 +235,12 @@ class BattleState {
           for (let i = 1; i < hits; i++) { const [d] = calcDamage(attacker, defender, moveData); defender.takeDamage(d); total += d; }
           log.push("Hit " + hits + " times!");
         }
-        let effText = "";
-        if (effect === "super_effective") effText = " It's super effective!";
-        else if (effect === "not_effective") effText = " It's not very effective...";
-        else if (effect === "no_effect") effText = " It had no effect!";
-        else if (effect === "fissure_ohko") effText = " It's a one-hit KO!";
-        else if (effect && effect.includes("critical")) effText = " A critical hit!";
-        log.push(attacker.name + " used " + moveData.name + "!" + effText);
+        log.push(attacker.name + " used " + moveData.name + "!");
+        if (effect === "super_effective") log.push("It's super effective!");
+        else if (effect === "not_effective") log.push("It's not very effective...");
+        else if (effect === "no_effect") log.push("It had no effect!");
+        else if (effect === "fissure_ohko") log.push("It's a one-hit KO!");
+        if (effect && effect.includes("critical")) log.push("Critical hit!");
         if (moveData.effect === "recoil") { const r = Math.floor(damage / 3); attacker.takeDamage(r); log.push(attacker.name + " took recoil!"); }
         const status = applyStatus(attacker, defender, moveData);
         if (status && status.startsWith("status_")) { const sn = status.slice(7); const w = { burn: "burned", freeze: "frozen", paralyze: "paralyzed", poison: "poisoned", sleep: "put to sleep" }; log.push(defender.name + " was " + (w[sn] || sn) + "!"); }
