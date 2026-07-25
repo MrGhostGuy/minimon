@@ -4,7 +4,7 @@ const QRCode = require('qrcode');
 const gameData = {
     title: "Minimon",
     url: "https://mrghostguy.github.io/minimon/",
-    description: "A Mini-Collecting RPG Adventure - Catch, train, and battle with 85 unique creatures across 12 maps!",
+    description: "A Mini-Collecting RPG Adventure - Catch, train, and battle with 100 unique creatures across 12 maps!",
     iconUrl: "",
     themeColor: "#FE5000"
 };

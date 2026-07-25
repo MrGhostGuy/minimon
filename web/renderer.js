@@ -385,32 +385,32 @@ class Renderer {
     // Footer with decorative separator
     ctx.strokeStyle = rgb([100, 120, 180]);
     ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.moveTo(80, 365); ctx.lineTo(400, 365); ctx.stroke();
-    this.text(240, 378, "Rabbit R1 Edition", COL_LGRAY, 10, true);
+    ctx.beginPath(); ctx.moveTo(80, 340); ctx.lineTo(400, 340); ctx.stroke();
+    this.text(240, 354, "Rabbit R1 Edition", COL_LGRAY, 10, true);
     // Stylized creator credit - golden with subtle glow
     ctx.save();
     ctx.shadowColor = 'rgba(255, 200, 50, 0.4)';
     ctx.shadowBlur = 6;
-    this.text(240, 395, "~ MrGhostGuy ~", COL_YELLOW, 13, true);
+    this.text(240, 370, "~ MrGhostGuy ~", COL_YELLOW, 13, true);
     ctx.restore();
-    this.text(240, 410, "Jeff Hollaway", COL_GRAY, 10, true);
+    this.text(240, 384, "Jeff Hollaway", COL_GRAY, 10, true);
     // Decorative line below credit
     ctx.strokeStyle = rgb([100, 120, 180]);
-    ctx.beginPath(); ctx.moveTo(170, 420); ctx.lineTo(310, 420); ctx.stroke();
-    this.text(240, 432, "Scroll = Navigate  |  Click = Select", COL_GRAY, 10, true);
+    ctx.beginPath(); ctx.moveTo(170, 396); ctx.lineTo(310, 396); ctx.stroke();
+    this.text(240, 410, "Scroll = Navigate  |  Click = Select", COL_GRAY, 10, true);
 
     // Bottom creature showcase - 8 diverse creatures in a row
     const showcase = [1, 4, 11, 13, 39, 57, 71, 86];
     // Showcase background
-    this.rect(0, 430, SCREEN_W, 50, [15, 18, 35], 0.8);
+    this.rect(0, 422, SCREEN_W, 48, [15, 18, 35], 0.8);
     ctx.strokeStyle = rgb([50, 70, 120]); ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.moveTo(0, 430); ctx.lineTo(SCREEN_W, 430); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, 422); ctx.lineTo(SCREEN_W, 422); ctx.stroke();
     for (let i = 0; i < showcase.length; i++) {
       const dex = showcase[i];
       const cr = CREATURES[dex];
       if (!cr) continue;
       const sx = 28 + i * 56;
-      const sy = 434;
+      const sy = 426;
       this.creatureSprite(sx, sy, 22, dex);
       this.text(sx + 11, sy + 26, cr.name, COL_GRAY, 6, true);
     }
@@ -857,8 +857,6 @@ class Renderer {
 
       if (fainted) ctx.globalAlpha = 1;
     }
-
-    if (sel2) this.menuCursor(bx + 10, by + 36 + sel * 64 + 16, 0);
   }
 
   // ===== MOVE MENU - Minimon Style 2x2 Grid =====
@@ -1105,12 +1103,11 @@ class Renderer {
   // ===== PAUSE MENU - Minimon RSE Start Menu Style =====
   pauseMenu(player, cursor, t) {
     const ctx = this.ctx;
-    const fadeIn = Math.min(1, t * 4);
 
-    ctx.globalAlpha = 0.7 * fadeIn;
+    ctx.globalAlpha = 0.7;
     ctx.fillStyle = rgb(COL_BLACK);
     ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
-    ctx.globalAlpha = fadeIn;
+    ctx.globalAlpha = 1;
 
     const bx = 30, by = 10, bw = 420, bh = 460;
 
@@ -1203,12 +1200,11 @@ class Renderer {
   // ===== BAG CATEGORY MENU - Minimon Bag Style =====
   bagCatMenu(inventory, bagTab, cursor, t) {
     const ctx = this.ctx;
-    const fadeIn = Math.min(1, t * 4);
 
-    ctx.globalAlpha = 0.7 * fadeIn;
+    ctx.globalAlpha = 0.7;
     ctx.fillStyle = rgb(COL_BLACK);
     ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
-    ctx.globalAlpha = fadeIn;
+    ctx.globalAlpha = 1;
 
     const bx = 15, by = 10, bw = 450, bh = 460;
     const bagGrad = ctx.createLinearGradient(bx, by, bx, by + bh);
