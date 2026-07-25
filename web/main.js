@@ -49,6 +49,7 @@ let pauseReturnState = S_OW;
 let repelUsedInStarter = false; // Easter egg flag
 let starterLegendaryOptions = [75, 76, 77]; // Default legendary starters
 let bagReturnState = S_OW; // Track where to return from bag
+let menuOpenTime = 0; // Relative time when menu was opened
 function pokedexSee(dex) { if (!pokedex[dex]) pokedex[dex] = { seen: true, caught: false }; else pokedex[dex].seen = true; }
 function pokedexCatch(dex) { pokedexSee(dex); if (pokedex[dex]) pokedex[dex].caught = true; }
 
@@ -975,7 +976,7 @@ function advanceIntro() {
     "But first... what is your name?"
   ]);
   pendingNameInput = true;
-  state = S_DIALOG;
+  state = S_INTRO;
 }
 
 // === GAME INIT ===
