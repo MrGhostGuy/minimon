@@ -93,24 +93,8 @@ class Renderer {
     this.text(8, 16, "Map: " + mapName, COL_WHITE, 11);
     this.text(160, 16, "Steps: " + player.stepCounter, COL_GRAY, 11);
     this.text(270, 16, "$: " + player.money, COL_YELLOW, 11);
-    // Badge display
     const badgeStr = "Badges: " + player.badges.length + "/8";
     this.text(370, 16, badgeStr, player.badges.length >= 8 ? COL_YELLOW : COL_LGRAY, 11);
-    // Mini party HP indicators at top-right
-    if (player.party.length) {
-      const startX = SCREEN_W - player.party.length * 16;
-      for (let i = 0; i < player.party.length; i++) {
-        const c = player.party[i];
-        const x = startX + i * 16;
-        const ratio = c.hp / Math.max(1, c.maxHP);
-        const col = !c.isAlive() ? COL_GRAY : ratio > 0.5 ? COL_HPG : ratio > 0.2 ? COL_HPY : COL_HPR;
-        this.rect(x, 4, 14, 4, col);
-        if (c.status) {
-          const sCol = {burn:[255,120,20],poison:[180,60,200],paralyze:[255,240,60],freeze:[150,220,255],sleep:[160,160,200]}[c.status]||COL_RED;
-          this.rect(x, 9, 14, 2, sCol);
-        }
-      }
-    }
   }
 
   dialogBox(text, speaker) {
@@ -440,17 +424,6 @@ class Renderer {
     }
   }
 
-  inventoryMenu(inv, sel) {
-    this.box(10, 30, 460, 420); this.text(240, 48, "INVENTORY", COL_YELLOW, 14, true);
-    const items = Object.entries(inv).filter(([, v]) => v > 0);
-    for (let i = 0; i < items.length; i++) {
-      const [item, count] = items[i]; const y = 65 + i * 35;
-      if (i === sel) this.rect(16, y, 448, 30, COL_SELECT, 0.3);
-      this.text(24, y + 18, item + " x" + count, i === sel ? COL_WHITE : COL_LGRAY, 14);
-    }
-    if (!items.length) this.text(240, 200, "No items!", COL_GRAY, 14, true);
-  }
-
   moveMenu(moves, sel, creature, newMoveName) {
     this.box(10, 30, 460, 200);
     this.text(240, 48, newMoveName ? "Learn " + newMoveName + " - Forget which?" : "CHOOSE MOVE", COL_YELLOW, 14, true);
@@ -717,21 +690,40 @@ class Renderer {
     ctx.globalAlpha = 1;
     this.box(40, 60, 400, 380);
     this.text(240, 78, "Use " + itemName + " on:", COL_YELLOW, 14, true);
+    // Determine valid target filter
+    const isRevive = [I_REVIVE, I_FREVIVE].includes(itemName);
+    const isPotion = [I_POTION, I_SPOTION, I_HPOTION].includes(itemName);
+    // Skip to first valid target
+    let validCursor = cursor;
+    for (let tries = 0; tries < party.length; tries++) {
+      const c = party[validCursor % party.length];
+      if (isRevive && !c.isAlive()) break;
+      if (isPotion && c.isAlive() && c.hp < c.maxHP) break;
+      if (!isRevive && !isPotion) break;
+      validCursor++;
+    }
+    let drawn = 0;
     for (let i = 0; i < party.length; i++) {
-      const c = party[i]; const y = 100 + i * 55;
-      if (i === cursor) this.rect(46, y, 388, 50, COL_SELECT, 0.3);
-      this.box(46, y, 388, 50, i === cursor ? COL_SELECT : COL_LGRAY);
+      const c = party[i]; const y = 100 + drawn * 55;
+      let valid = true;
+      if (isRevive) valid = !c.isAlive();
+      else if (isPotion) valid = c.isAlive() && c.hp < c.maxHP;
+      const sel = i === validCursor % party.length;
+      if (sel) this.rect(46, y, 388, 50, COL_SELECT, 0.3);
+      this.box(46, y, 388, 50, sel ? COL_SELECT : COL_LGRAY);
       this.creatureSprite(54, y + 2, 44, c.dex);
-      this.text(106, y + 16, c.name, COL_WHITE, 13);
-      this.text(106, y + 32, "Lv." + c.level + " " + c.types.join("/"), COL_GRAY, 10);
+      this.text(106, y + 16, c.name, valid ? COL_WHITE : COL_GRAY, 13);
+      this.text(106, y + 32, "Lv." + c.level + " " + c.types.join("/"), valid ? COL_GRAY : [80,80,80], 10);
       this.hpBar(260, y + 12, 150, 8, c.hp / Math.max(1, c.maxHP));
-      this.text(260, y + 30, c.hp + "/" + c.maxHP, COL_WHITE, 10);
+      this.text(260, y + 30, c.hp + "/" + c.maxHP, valid ? COL_WHITE : COL_GRAY, 10);
       if (c.status) {
         const sCol = {burn:[255,120,20],poison:[180,60,200],paralyze:[255,240,60],freeze:[150,220,255],sleep:[160,160,200]}[c.status]||COL_RED;
         const sTxt = {burn:"BRN",poison:"PSN",paralyze:"PAR",freeze:"FRZ",sleep:"SLP"}[c.status]||c.status;
         this.text(420, y + 30, sTxt, sCol, 10, true);
       }
       if (!c.isAlive()) this.text(260, y + 44, "FAINTED", COL_RED, 9);
+      if (!valid) this.text(380, y + 44, "N/A", COL_GRAY, 9, true);
+      drawn++;
     }
     this.text(240, 430, "Scroll=Select  Click=Use  Right-click=Cancel", COL_GRAY, 10, true);
   }

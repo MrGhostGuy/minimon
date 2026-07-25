@@ -14,12 +14,12 @@ window.addEventListener("resize", resize); resize();
 
 const R = new Renderer(ctx, SCREEN_W, SCREEN_H);
 
-const S_TITLE="title", S_INTRO="intro", S_OW="overworld", S_BATTLE="battle", S_MENU="menu",
-S_PARTY="party", S_BAG="bag", S_MOVES="moves", S_DIALOG="dialog", S_EVOLUTION="evolution",
+const S_TITLE="title", S_INTRO="intro", S_OW="overworld", S_BATTLE="battle",
+S_PARTY="party", S_MOVES="moves", S_DIALOG="dialog", S_EVOLUTION="evolution",
 S_SHOP="shop", S_GAMEOVER="gameover", S_VICTORY="victory", S_STARTER="choose_starter",
 S_TM="tm_select", S_NAME="name_input", S_ENCOUNTER="encounter",
-S_PAUSE="pause", S_BAG_CAT="bag_cat", S_BAG_ITEMS="bag_items", S_PARTY_DETAIL="party_detail",
-S_PARTY_SUMMARY="party_summary", S_MAP="map_screen";
+S_PAUSE="pause", S_BAG_CAT="bag_cat", S_PARTY_DETAIL="party_detail",
+S_MAP="map_screen";
 
 const FACING = ["down","left","up","right"];
 const FACING_CYCLE = {down:"left",left:"up",up:"right",right:"down"};
@@ -761,9 +761,13 @@ function handleClick(button, mx, my) {
   else if (state === "pokedex") { state = S_PAUSE; cursor = 0; }
   else if (state === S_PARTY && button === 1) {
     if (partyMode === "use") {
-      // Use item on selected creature
       if (cursor < player.party.length && pendingUseItem) {
-        const msg = applyOverworldItem(pendingUseItem, player.party[cursor]);
+        const c = player.party[cursor];
+        const isRevive = [I_REVIVE, I_FREVIVE].includes(pendingUseItem);
+        const isPotion = [I_POTION, I_SPOTION, I_HPOTION].includes(pendingUseItem);
+        if (isRevive && c.isAlive()) { state = S_DIALOG; setDialog([c.name + " isn't fainted!"]); pendingUseItem = null; partyMode = "select"; return; }
+        if (isPotion && (!c.isAlive() || c.hp >= c.maxHP)) { state = S_DIALOG; setDialog([c.name + " doesn't need healing!"]); pendingUseItem = null; partyMode = "select"; return; }
+        const msg = applyOverworldItem(pendingUseItem, c);
         pendingUseItem = null; partyMode = "select";
         state = S_DIALOG; setDialog([msg]);
       }
@@ -1133,24 +1137,6 @@ function renderBattle() {
     }
     if (!items.length) R.text(240, 200, "No items!", COL_GRAY, 14, true);
   }
-}
-
-function renderMenu() {
-  R.box(100, 50, 280, 400); R.text(240, 68, "MENU", COL_YELLOW, 14, true);
-  const opts = ["Party","Bag","Save","Load","Pokedex","Quit"];
-  for (let i = 0; i < opts.length; i++) {
-    const y = 100 + i * 45;
-    if (i === cursor) { R.rect(110, y - 5, 260, 36, COL_SELECT, 0.3); R.menuCursor(115, y + 3, time); }
-    R.text(130, y + 15, opts[i], i === cursor ? COL_YELLOW : COL_WHITE, 14);
-  }
-  if (player.party.length) {
-    const c = player.party[0];
-    R.text(240, 380, c.name + " Lv." + c.level + " HP:" + c.hp + "/" + c.maxHP, COL_GRAY, 11, true);
-  }
-  // Show play time
-  const mins = Math.floor(player.playTime / 60);
-  const hrs = Math.floor(mins / 60);
-  R.text(240, 400, "Play: " + hrs + "h " + (mins % 60) + "m", COL_GRAY, 10, true);
 }
 
 function renderPokedex() {
