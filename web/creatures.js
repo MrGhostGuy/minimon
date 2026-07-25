@@ -429,7 +429,7 @@ addC(94,"Scorpox",[TYPE_WIND,TYPE_DARK],78,90,68,72,55,58,
    [40,"megahorn"],[45,"toxic"]],
   null,45,GROWTH_MEDIUM,[100,140,40],[120,160,60]);
 
-// Normal/Flying (common Pokemon type)
+// Normal/Flying (common Minimon type)
 addC(95,"Skylark",[TYPE_NORMAL,TYPE_WIND],40,35,30,55,38,32,
   [[1,"tackle"],[1,"growl"],[5,"gust"],[10,"quick_attack"],
    [15,"wing_attack"],[20,"air_slash"]],
@@ -449,7 +449,7 @@ addC(98,"Pyromice",[TYPE_FIRE,TYPE_DARK],72,82,52,88,65,48,
    [38,"blaze_fury"],[42,"inferno"]],
   null,45,GROWTH_MEDIUM,[240,120,40],[255,160,60]);
 
-// Normal (blob/slime Pokemon)
+// Normal (blob/slime Minimon)
 addC(99,"Slickslime",[TYPE_NORMAL],50,35,50,30,35,55,
   [[1,"tackle"],[5,"harden"],[10,"body_slam"],[15,"recover"],
    [20,"sludge_bomb"]],

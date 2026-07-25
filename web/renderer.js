@@ -1,4 +1,4 @@
-// Minimon - Renderer (Canvas 2D) - Gen 3-5 Pokemon Style
+// Minimon - Renderer (Canvas 2D) - Gen 3-5 Minimon Style
 class Renderer {
   constructor(ctx, w, h) {
     this.ctx = ctx; this.w = w; this.h = h;
@@ -277,7 +277,7 @@ class Renderer {
     }
   }
 
-  // ===== TITLE SCREEN - Pokemon Gen 3-5 Style =====
+  // ===== TITLE SCREEN - Minimon Gen 3-5 Style =====
   startScreen(t) {
     const ctx = this.ctx;
 
@@ -382,10 +382,22 @@ class Renderer {
       ctx.globalAlpha = 1;
     }
 
-    // Footer
-    this.text(240, 380, "Rabbit R1 Edition", COL_GRAY, 11, true);
-    this.text(240, 396, "Created by MrGhostGuy (Jeff Hollaway)", COL_GRAY, 10, true);
-    this.text(240, 412, "Scroll = Navigate  |  Click = Select", COL_GRAY, 11, true);
+    // Footer with decorative separator
+    ctx.strokeStyle = rgb([100, 120, 180]);
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(80, 365); ctx.lineTo(400, 365); ctx.stroke();
+    this.text(240, 378, "Rabbit R1 Edition", COL_LGRAY, 10, true);
+    // Stylized creator credit - golden with subtle glow
+    ctx.save();
+    ctx.shadowColor = 'rgba(255, 200, 50, 0.4)';
+    ctx.shadowBlur = 6;
+    this.text(240, 395, "~ MrGhostGuy ~", COL_YELLOW, 13, true);
+    ctx.restore();
+    this.text(240, 410, "Jeff Hollaway", COL_GRAY, 10, true);
+    // Decorative line below credit
+    ctx.strokeStyle = rgb([100, 120, 180]);
+    ctx.beginPath(); ctx.moveTo(170, 420); ctx.lineTo(310, 420); ctx.stroke();
+    this.text(240, 432, "Scroll = Navigate  |  Click = Select", COL_GRAY, 10, true);
 
     // Bottom creature showcase - 8 diverse creatures in a row
     const showcase = [1, 4, 11, 13, 39, 57, 71, 86];
@@ -404,7 +416,7 @@ class Renderer {
     }
   }
 
-  // ===== BATTLE SCENE - Pokemon RSE/FRLG Style =====
+  // ===== BATTLE SCENE - Minimon RSE/FRLG Style =====
   battleScene(p, e, t) {
     const ctx = this.ctx;
     ctx.save();
@@ -437,7 +449,7 @@ class Renderer {
     ctx.lineTo(480, 280); ctx.lineTo(0, 280);
     ctx.fill();
 
-    // Battle platforms (Pokemon-style ovals with shading)
+    // Battle platforms (Minimon-style ovals with shading)
     // Player platform (bottom-left)
     ctx.fillStyle = rgb([100, 160, 70]);
     ctx.beginPath(); ctx.ellipse(120, 320, 95, 22, 0, 0, Math.PI * 2); ctx.fill();
@@ -454,7 +466,7 @@ class Renderer {
     ctx.strokeStyle = rgb([120, 180, 80]); ctx.lineWidth = 1;
     ctx.beginPath(); ctx.ellipse(360, 155, 85, 20, 0, 0, Math.PI * 2); ctx.stroke();
 
-    // Enemy Pokemon (top-right area)
+    // Enemy Mini (top-right area)
     if (e) {
       const bob = Math.sin(t * 2) * 3;
       const ex = 325, ey = 80 + Math.floor(bob);
@@ -474,7 +486,7 @@ class Renderer {
       this.drawStatusGlow(ctx, ex + 35, ey + 35, e.status, t);
     }
 
-    // Player Pokemon (bottom-left area)
+    // Player Mini (bottom-left area)
     if (p) {
       const bob = Math.sin(t * 2 + 1) * 3;
       const px2 = 55, py2 = 215 + Math.floor(bob);
@@ -766,7 +778,7 @@ class Renderer {
     this.text(240, 350, "Congratulations!", COL_WHITE, 14, true);
   }
 
-  // ===== PARTY MENU - Pokemon Party Screen Style =====
+  // ===== PARTY MENU - Minimon Party Screen Style =====
   partyMenu(party, sel) {
     const ctx = this.ctx;
     const bx = 10, by = 30, bw = 460, bh = 420;
@@ -849,7 +861,7 @@ class Renderer {
     if (sel2) this.menuCursor(bx + 10, by + 36 + sel * 64 + 16, 0);
   }
 
-  // ===== MOVE MENU - Pokemon Style 2x2 Grid =====
+  // ===== MOVE MENU - Minimon Style 2x2 Grid =====
   moveMenu(moves, sel, creature, newMoveName) {
     const ctx = this.ctx;
     const bx = 10, by = 30, bw = 460, bh = 280;
@@ -970,7 +982,7 @@ class Renderer {
     ctx.fillRect(bx + 8, by + 4, bw - 16, 28);
     ctx.strokeStyle = rgb([240, 220, 80]); ctx.lineWidth = 1;
     ctx.strokeRect(bx + 8, by + 4, bw - 16, 28);
-    this.text(bx + bw / 2, by + 22, "POKEMON MART", COL_BLACK, 14, true);
+    this.text(bx + bw / 2, by + 22, "MINIMON MART", COL_BLACK, 14, true);
 
     this.text(bx + bw - 20, by + 52, "$" + money, COL_YELLOW, 12, true);
 
@@ -1070,7 +1082,7 @@ class Renderer {
     if (cur) lines.push(cur); return lines;
   }
 
-  // ===== PAUSE MENU - Pokemon Style Blue Box =====
+  // ===== PAUSE MENU - Minimon Style Blue Box =====
   pauseButton(t) {
     const ctx = this.ctx;
     const bx = 456, by = 2, bw = 20, bh = 18;
@@ -1090,7 +1102,7 @@ class Renderer {
     return mx >= 456 && mx <= 476 && my >= 2 && my <= 20;
   }
 
-  // ===== PAUSE MENU - Pokemon RSE Start Menu Style =====
+  // ===== PAUSE MENU - Minimon RSE Start Menu Style =====
   pauseMenu(player, cursor, t) {
     const ctx = this.ctx;
     const fadeIn = Math.min(1, t * 4);
@@ -1141,7 +1153,7 @@ class Renderer {
     const total = typeof CREATURES !== "undefined" ? Object.keys(CREATURES).length : 100;
     const caught = typeof pokedex !== "undefined" ? Object.values(pokedex).filter(v => v.caught).length : 0;
     const seen = typeof pokedex !== "undefined" ? Object.values(pokedex).filter(v => v.seen).length : 0;
-    this.text(infoX, cardY + 82, "Pokedex: " + seen + "/" + caught + "/" + total, COL_LGRAY, 10);
+    this.text(infoX, cardY + 82, "Minidex: " + seen + "/" + caught + "/" + total, COL_LGRAY, 10);
 
     const badgeNames = ["Gra","Stl","Msh","Fst","Elc","Lav","Inf","Wnd"];
     for (let i = 0; i < 8; i++) {
@@ -1151,7 +1163,7 @@ class Renderer {
       this.text(bxx + 18, byy + 10, badgeNames[i], has ? COL_BLACK : [80, 90, 110], 7, true);
     }
 
-    const opts = ["Party","Bag","Pokedex","Save","Load","Map","Close"];
+    const opts = ["Party","Bag","Minidex","Save","Load","Map","Close"];
     const menuStartY = by + 132;
     const optH = 44;
 
@@ -1188,7 +1200,7 @@ class Renderer {
     ctx.globalAlpha = 1;
   }
 
-  // ===== BAG CATEGORY MENU - Pokemon Bag Style =====
+  // ===== BAG CATEGORY MENU - Minimon Bag Style =====
   bagCatMenu(inventory, bagTab, cursor, t) {
     const ctx = this.ctx;
     const fadeIn = Math.min(1, t * 4);
@@ -1376,7 +1388,7 @@ class Renderer {
     this.text(240, 430, "Scroll=Select  Click=Use  Right-click=Cancel", COL_GRAY, 10, true);
   }
 
-  // ===== PARTY DETAIL - Pokemon Full Summary Screen =====
+  // ===== PARTY DETAIL - Minimon Full Summary Screen =====
   partyDetailMenu(party, cursor, t, mode) {
     const ctx = this.ctx;
     ctx.globalAlpha = 0.7;
@@ -1518,7 +1530,7 @@ class Renderer {
     }
   }
 
-  // World Map Screen - Pokemon Town Map Style
+  // World Map Screen - Minimon Town Map Style
   worldMapScreen(player, currentMapName, cursor, t) {
     const ctx = this.ctx;
     ctx.globalAlpha = 0.7;

@@ -643,13 +643,13 @@ function selectTMCreature() {
 
 // Menu handlers
 function selectPauseMenu() {
-  const opts = ["Party","Bag","Pokedex","Save","Load","Map","Close"];
+  const opts = ["Party","Bag","Minidex","Save","Load","Map","Close"];
   const choice = opts[cursor];
   if (choice === "Party") { state = S_PARTY; cursor = 0; partyMode = "select"; }
   else if (choice === "Bag") { bagReturnState = S_PAUSE; state = S_BAG_CAT; bagTab = 0; cursor = BAG_TABS.length; }
   else if (choice === "Save") { state = S_DIALOG; if (saveGame()) setDialog(["Game saved!"]); else setDialog(["Save failed!"]); }
   else if (choice === "Load") { if (loadGame()) { state = S_DIALOG; setDialog(["Game loaded!"]); } else { state = S_DIALOG; setDialog(["No save found!"]); } }
-  else if (choice === "Pokedex") { state = "pokedex"; cursor = 0; }
+  else if (choice === "Minidex") { state = "pokedex"; cursor = 0; }
   else if (choice === "Map") { state = S_MAP; cursor = 0; }
   else if (choice === "Close") { state = S_OW; }
 }
@@ -1121,7 +1121,7 @@ function renderNameInput() {
   R.text(112, 50, "Professor Sage", COL_YELLOW, 16);
   R.text(112, 68, "Name Registration", COL_LGRAY, 11);
 
-  // Pokemon-style dialog box at bottom
+  // Minimon-style dialog box at bottom
   for (let y = 370; y < 470; y++) {
     const r = (y - 370) / 100;
     const red = Math.floor(18 + 14 * r);
@@ -1140,7 +1140,7 @@ function renderNameInput() {
   R.text(445, 456, "\u25BC", COL_WHITE, 12, true);
   ctx.globalAlpha = 1;
 
-  // Name input box - centered, Pokemon-style border
+  // Name input box - centered, Minimon-style border
   var nbx = 140, nby = 110, nbw = 200, nbh = 36;
   R.rect(nbx, nby, nbw, nbh, [15, 15, 35]);
   ctx.strokeStyle = rgb(COL_LGRAY); ctx.lineWidth = 2;
@@ -1234,7 +1234,7 @@ function renderStarter() {
   // Pause/bag button top-right
   R.pauseButton(time);
 
-  // Pokemon-style dialog box at bottom
+  // Minimon-style dialog box at bottom
   for (var dy = 370; dy < 470; dy++) {
     var dr = (dy - 370) / 100;
     var dRed = Math.floor(18 + 14 * dr);
@@ -1253,7 +1253,7 @@ function renderStarter() {
   R.text(445, 456, "\u25BC", COL_WHITE, 12, true);
   ctx.globalAlpha = 1;
 
-  // Three Pokeballs with creatures
+  // Three Miniballs with creatures
   var choices = pendingStarter;
   var pokeR = 30;
   var spacing = 152;
@@ -1270,7 +1270,7 @@ function renderStarter() {
     var bounce = isSel ? Math.sin(time * 4) * 6 : 0;
     var creatureY = pokeY - 70 + Math.floor(bounce);
 
-    // Golden glow for selected pokeball
+    // Golden glow for selected miniball
     if (isSel) {
       var gp = 0.15 + Math.sin(time * 3) * 0.08;
       ctx.save();
@@ -1286,10 +1286,10 @@ function renderStarter() {
       ctx.restore();
     }
 
-    // Creature sprite (emerging above the pokeball)
+    // Creature sprite (emerging above the miniball)
     drawCreature(ctx, cx - 24, creatureY, 48, dex, false);
 
-    // -- Draw Pokeball --
+    // -- Draw Miniball --
     // Red top half (full circle)
     ctx.beginPath();
     ctx.arc(cx, pokeY, pokeR, 0, Math.PI * 2);
@@ -1334,7 +1334,7 @@ function renderStarter() {
     ctx.fillStyle = rgb(isSel ? COL_YELLOW : [180, 180, 180]);
     ctx.fill();
 
-    // -- Creature info below pokeball --
+    // -- Creature info below miniball --
     var infoY = pokeY + pokeR + 10;
 
     // Name
@@ -1379,7 +1379,7 @@ function renderOverworld() {
     if (info) R.interactBubble(info.x * TILE + TILE / 2, info.y * TILE - 12, time);
     R.dpad(DPAD_CX, DPAD_CY, DPAD_R, DPAD_BS);
     if (state === S_INTRO) {
-      // Pokemon RSE-style blue gradient dialog box for intro
+      // Minimon RSE-style blue gradient dialog box for intro
       var ictx = R.ctx;
       for (var dby = 350; dby < 470; dby++) {
         var dbr = (dby - 350) / 120;
@@ -1461,7 +1461,7 @@ function renderBattle() {
 function renderPokedex() {
   var ctx = R.ctx;
 
-  // Dark blue gradient background (like RSE Pokedex)
+  // Dark blue gradient background (like RSE Minidex)
   for (var py = 0; py < SCREEN_H; py++) {
     var pr = py / SCREEN_H;
     var pRed = Math.floor(15 + 10 * pr);
@@ -1475,7 +1475,7 @@ function renderPokedex() {
   R.box(10, 10, 460, 460, COL_WHITE, [20, 22, 42]);
 
   // Title
-  R.text(240, 32, "MINIMON POKEDEX", COL_YELLOW, 16, true);
+  R.text(240, 32, "MINIDEX", COL_YELLOW, 16, true);
 
   var entries = Object.entries(pokedex);
   var seen = entries.filter(function(e) { return e[1].seen; }).length;
