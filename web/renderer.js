@@ -534,4 +534,362 @@ class Renderer {
     }
     if (cur) lines.push(cur); return lines;
   }
+
+  // ===== PAUSE MENU SYSTEM =====
+
+  // Pause button (drawn on overworld HUD)
+  pauseButton(t) {
+    const ctx = this.ctx;
+    const bx = 456, by = 2, bw = 20, bh = 18;
+    ctx.fillStyle = rgb([50, 50, 70]);
+    ctx.fillRect(bx, by, bw, bh);
+    ctx.strokeStyle = rgb(COL_LGRAY); ctx.lineWidth = 1;
+    ctx.strokeRect(bx, by, bw, bh);
+    const pulse = 0.5 + Math.sin(t * 3) * 0.15;
+    ctx.globalAlpha = pulse;
+    ctx.fillStyle = rgb(COL_WHITE);
+    ctx.fillRect(bx + 5, by + 4, 3, 10);
+    ctx.fillRect(bx + 12, by + 4, 3, 10);
+    ctx.globalAlpha = 1;
+  }
+
+  // Pause button hit test
+  hitPauseButton(mx, my) {
+    return mx >= 456 && mx <= 476 && my >= 2 && my <= 20;
+  }
+
+  // Main Pause Menu (Pokemon-style trainer card + options)
+  pauseMenu(player, cursor, t) {
+    const ctx = this.ctx;
+    // Darken background
+    ctx.globalAlpha = 0.6; ctx.fillStyle = rgb(COL_BLACK); ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
+    ctx.globalAlpha = 1;
+    // Main box
+    this.box(30, 20, 420, 440);
+    // Trainer card section
+    this.box(40, 30, 400, 80, COL_LGRAY, [30, 30, 50]);
+    this.text(50, 48, player.name + "'s Trainer Card", COL_YELLOW, 14);
+    const mins = Math.floor(player.playTime / 60);
+    const hrs = Math.floor(mins / 60);
+    this.text(50, 68, "Badges: " + player.badges.length + "/8", player.badges.length >= 8 ? COL_YELLOW : COL_LGRAY, 12);
+    this.text(200, 68, "$" + player.money, COL_YELLOW, 12);
+    this.text(320, 68, "Time: " + hrs + "h " + (mins % 60) + "m", COL_GRAY, 11);
+    // Mini party indicator
+    if (player.party.length) {
+      const c = player.party[0];
+      this.text(50, 88, "Lead: " + c.name + " Lv." + c.level, COL_LGRAY, 11);
+      this.hpBar(220, 82, 100, 6, c.hp / Math.max(1, c.maxHP));
+      this.text(330, 88, "HP:" + c.hp + "/" + c.maxHP, COL_GRAY, 11);
+    }
+    // Badge icons
+    const badgeIcons = ["G","S","M","F","E","L","I","W"];
+    const badgeNames = ["Granite","Steel","Marsh","Frost","Electric","Lava","Inferno","Wind"];
+    for (let i = 0; i < 8; i++) {
+      const bx = 50 + i * 46, by = 100;
+      const has = i < player.badges.length;
+      this.rect(bx, by, 38, 14, has ? [180, 150, 60] : [40, 40, 50]);
+      this.text(bx + 19, by + 11, badgeNames[i], has ? COL_BLACK : COL_GRAY, 7, true);
+    }
+    // Options grid (3 columns, 3 rows)
+    const opts = ["Party","Bag","Pokedex","Save","Load","Map","Close"];
+    const cols = 3, cellW = 130, cellH = 55;
+    const gridX = 55, gridY = 130;
+    for (let i = 0; i < opts.length; i++) {
+      const col = i % cols, row = Math.floor(i / cols);
+      const ox = gridX + col * cellW, oy = gridY + row * cellH;
+      const sel = i === cursor;
+      // Button box
+      this.rect(ox, oy, 120, 45, sel ? [60, 60, 90] : [30, 30, 50]);
+      this.ctx.strokeStyle = rgb(sel ? COL_YELLOW : COL_LGRAY);
+      this.ctx.lineWidth = sel ? 2 : 1;
+      this.ctx.strokeRect(ox, oy, 120, 45);
+      if (sel) this.menuCursor(ox + 4, oy + 14, t);
+      // Icon
+      const icons = {Party:"P",Bag:"B",Pokedex:"D",Save:"Sv",Load:"Lo",Map:"M",Close:"X"};
+      this.text(ox + 60, oy + 18, icons[opts[i]] || "?", sel ? COL_YELLOW : COL_LGRAY, 18, true);
+      this.text(ox + 60, oy + 36, opts[i], sel ? COL_YELLOW : COL_WHITE, 12, true);
+    }
+    // Pokedex progress
+    const total = typeof CREATURES !== "undefined" ? Object.keys(CREATURES).length : 100;
+    const caught = typeof pokedex !== "undefined" ? Object.values(pokedex).filter(v => v.caught).length : 0;
+    const seen = typeof pokedex !== "undefined" ? Object.values(pokedex).filter(v => v.seen).length : 0;
+    this.text(240, 320, "Pokedex: " + seen + " seen / " + caught + " caught / " + total + " total", COL_GRAY, 11, true);
+    // Footer
+    this.text(240, 440, "Scroll=Navigate  Click=Select  Right-click=Back", COL_GRAY, 10, true);
+  }
+
+  // Bag Category Menu with tabs
+  bagCatMenu(inventory, bagTab, cursor, t) {
+    const ctx = this.ctx;
+    ctx.globalAlpha = 0.6; ctx.fillStyle = rgb(COL_BLACK); ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
+    ctx.globalAlpha = 1;
+    this.box(20, 20, 440, 440);
+    this.text(240, 38, "BAG", COL_YELLOW, 16, true);
+    // Tab definitions
+    const BAG_TABS = [
+      { name: "Medicine", items: ["Potion","Super Potion","Hyper Potion","Full Heal","Revive","Full Revive"] },
+      { name: "Spheres", items: ["Soul Sphere","Great Sphere","Ultra Sphere","Master Sphere"] },
+      { name: "TMs", items: Object.keys(TM_MOVES || {}) },
+      { name: "Battle", items: ["X Attack","X Defense"] }
+    ];
+    // cursor 0-3 = tabs, 4+ = items
+    const isOnTab = cursor < BAG_TABS.length;
+    const itemCursor = Math.max(0, cursor - BAG_TABS.length);
+    // Draw tabs
+    const tabW = 100;
+    const tabStartX = 30;
+    for (let i = 0; i < BAG_TABS.length; i++) {
+      const tx = tabStartX + i * (tabW + 5);
+      const isActive = i === bagTab;
+      const isSel = i === cursor;
+      this.rect(tx, 50, tabW, 22, isSel ? [80, 80, 110] : (isActive ? [60, 60, 90] : [30, 30, 50]));
+      this.ctx.strokeStyle = rgb(isSel ? COL_YELLOW : (isActive ? COL_LGRAY : [80, 80, 100]));
+      this.ctx.lineWidth = (isSel || isActive) ? 2 : 1;
+      this.ctx.strokeRect(tx, 50, tabW, 22);
+      this.text(tx + tabW / 2, 65, BAG_TABS[i].name, isSel ? COL_YELLOW : (isActive ? COL_WHITE : COL_LGRAY), 10, true);
+      if (isSel && isOnTab) this.menuCursor(tx + 2, 55, t);
+    }
+    // Tab underline for active tab
+    const activeTabX = tabStartX + bagTab * (tabW + 5);
+    this.rect(activeTabX, 72, tabW, 2, COL_YELLOW);
+    // Item list
+    const items = BAG_TABS[bagTab].items.filter(name => (inventory[name] || 0) > 0);
+    const listY = 80;
+    this.box(30, listY, 420, 340, COL_WHITE, [20, 20, 35]);
+    if (!items.length) {
+      this.text(240, 240, "No items in this category", COL_GRAY, 12, true);
+    } else {
+      const maxShow = 9;
+      const offset = Math.max(0, itemCursor - maxShow + 1);
+      for (let i = offset; i < Math.min(items.length, offset + maxShow); i++) {
+        const name = items[i];
+        const count = inventory[name] || 0;
+        const y = listY + 10 + (i - offset) * 34;
+        const sel = i === itemCursor && !isOnTab;
+        if (sel) this.rect(36, y, 408, 30, COL_SELECT, 0.3);
+        // Item type color indicator
+        let itemCol = COL_LGRAY;
+        if (bagTab === 0) itemCol = COL_GREEN;
+        else if (bagTab === 1) itemCol = [100, 180, 255];
+        else if (bagTab === 2) itemCol = COL_YELLOW;
+        else if (bagTab === 3) itemCol = COL_RED;
+        this.rect(36, y + 2, 4, 26, itemCol);
+        this.text(48, y + 14, name, sel ? COL_WHITE : COL_LGRAY, 13);
+        this.text(400, y + 14, "x" + count, sel ? COL_YELLOW : COL_GRAY, 12, true);
+        if (sel) this.menuCursor(38, y + 8, t);
+        // Show description hint for selected item
+        if (sel) {
+          const desc = this.getItemDesc(name);
+          this.text(48, y + 28, desc, COL_GRAY, 9);
+        }
+      }
+      if (items.length > maxShow) {
+        this.text(240, listY + 330, "(" + (itemCursor + 1) + "/" + items.length + ")", COL_GRAY, 10, true);
+      }
+    }
+    this.text(240, 450, "Scroll=Navigate  Click=Select  Right-click=Back", COL_GRAY, 10, true);
+  }
+
+  getItemDesc(name) {
+    const descs = {
+      "Potion": "Heals 20 HP",
+      "Super Potion": "Heals 60 HP",
+      "Hyper Potion": "Heals 200 HP",
+      "Full Heal": "Cures all status",
+      "Revive": "Revives fainted Mini (half HP)",
+      "Full Revive": "Revives fainted Mini (full HP)",
+      "Soul Sphere": "Basic catching sphere",
+      "Great Sphere": "Good catching sphere",
+      "Ultra Sphere": "Great catching sphere",
+      "Master Sphere": "Never misses!",
+      "X Attack": "Raises ATK in battle",
+      "X Defense": "Raises DEF in battle"
+    };
+    if (descs[name]) return descs[name];
+    if (name && name.startsWith("TM ")) return "Teaches: " + (MOVES[TM_MOVES[name]] ? MOVES[TM_MOVES[name]].name : name.slice(3));
+    return "";
+  }
+
+  // Use Item Target Selection (for overworld item use)
+  useItemTargetMenu(party, itemName, cursor, t) {
+    const ctx = this.ctx;
+    ctx.globalAlpha = 0.6; ctx.fillStyle = rgb(COL_BLACK); ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
+    ctx.globalAlpha = 1;
+    this.box(40, 60, 400, 380);
+    this.text(240, 78, "Use " + itemName + " on:", COL_YELLOW, 14, true);
+    for (let i = 0; i < party.length; i++) {
+      const c = party[i]; const y = 100 + i * 55;
+      if (i === cursor) this.rect(46, y, 388, 50, COL_SELECT, 0.3);
+      this.box(46, y, 388, 50, i === cursor ? COL_SELECT : COL_LGRAY);
+      this.creatureSprite(54, y + 2, 44, c.dex);
+      this.text(106, y + 16, c.name, COL_WHITE, 13);
+      this.text(106, y + 32, "Lv." + c.level + " " + c.types.join("/"), COL_GRAY, 10);
+      this.hpBar(260, y + 12, 150, 8, c.hp / Math.max(1, c.maxHP));
+      this.text(260, y + 30, c.hp + "/" + c.maxHP, COL_WHITE, 10);
+      if (c.status) {
+        const sCol = {burn:[255,120,20],poison:[180,60,200],paralyze:[255,240,60],freeze:[150,220,255],sleep:[160,160,200]}[c.status]||COL_RED;
+        const sTxt = {burn:"BRN",poison:"PSN",paralyze:"PAR",freeze:"FRZ",sleep:"SLP"}[c.status]||c.status;
+        this.text(420, y + 30, sTxt, sCol, 10, true);
+      }
+      if (!c.isAlive()) this.text(260, y + 44, "FAINTED", COL_RED, 9);
+    }
+    this.text(240, 430, "Scroll=Select  Click=Use  Right-click=Cancel", COL_GRAY, 10, true);
+  }
+
+  // Party Detail with stats + moves
+  partyDetailMenu(party, cursor, t, mode) {
+    const ctx = this.ctx;
+    ctx.globalAlpha = 0.6; ctx.fillStyle = rgb(COL_BLACK); ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
+    ctx.globalAlpha = 1;
+    this.box(10, 10, 460, 460);
+    // Left side: party list (slim)
+    this.box(16, 16, 120, 448, COL_WHITE, [25, 25, 40]);
+    this.text(76, 32, "PARTY", COL_YELLOW, 10, true);
+    for (let i = 0; i < party.length; i++) {
+      const c = party[i];
+      const y = 40 + i * 70;
+      const sel = i === cursor;
+      if (sel) this.rect(18, y, 116, 64, COL_SELECT, 0.3);
+      this.box(18, y, 116, 64, sel ? COL_YELLOW : COL_LGRAY, sel ? [40, 40, 60] : [30, 30, 45]);
+      this.creatureSprite(28, y + 6, 36, c.dex);
+      this.text(70, y + 18, c.name, sel ? COL_WHITE : COL_LGRAY, 9);
+      this.text(70, y + 30, "Lv." + c.level, COL_GRAY, 9);
+      this.hpBar(28, y + 46, 98, 5, c.hp / Math.max(1, c.maxHP));
+      if (c.status) {
+        const sCol = {burn:[255,120,20],poison:[180,60,200],paralyze:[255,240,60],freeze:[150,220,255],sleep:[160,160,200]}[c.status]||COL_RED;
+        this.rect(28, y + 54, 12, 6, sCol);
+      }
+    }
+    // Right side: detail of selected creature
+    if (cursor < party.length) {
+      const c = party[cursor];
+      const rx = 145, ry = 16, rw = 318, rh = 448;
+      this.box(rx, ry, rw, rh, COL_WHITE, [20, 20, 35]);
+      // Header
+      this.creatureSprite(rx + 10, ry + 8, 60, c.dex);
+      this.text(rx + 80, ry + 20, c.name, COL_WHITE, 15);
+      this.text(rx + 80, ry + 38, "#" + String(c.dex).padStart(3,"0") + "  " + c.types.join("/"), TYPE_COLORS[c.types[0]] || COL_GRAY, 11);
+      this.text(rx + 80, ry + 52, "Lv." + c.level + "  BST:" + c.stats.reduce((a,b)=>a+b,0), COL_LGRAY, 10);
+      // HP bar
+      this.text(rx + 10, ry + 80, "HP", COL_LGRAY, 10);
+      this.hpBar(rx + 35, ry + 74, 180, 10, c.hp / Math.max(1, c.maxHP));
+      this.text(rx + 220, ry + 82, c.hp + "/" + c.maxHP, COL_WHITE, 11);
+      // Stats
+      const statNames = ["ATK","DEF","SPD","SATK","SDEF"];
+      const statCols = [COL_RED, COL_BLUE, COL_GREEN, [255,160,60], [180,100,220]];
+      for (let i = 0; i < 5; i++) {
+        const sy = ry + 100 + i * 16;
+        this.text(rx + 10, sy + 10, statNames[i], statCols[i], 10);
+        this.text(rx + 50, sy + 10, "" + c.stats[i + 1], COL_WHITE, 10);
+        // Stat bar
+        const statRatio = Math.min(1, c.stats[i + 1] / 200);
+        this.rect(rx + 85, sy + 4, 80, 8, [40, 40, 50]);
+        this.rect(rx + 85, sy + 4, Math.floor(80 * statRatio), 8, statCols[i]);
+      }
+      // Status
+      if (c.status) {
+        const sTxt = {burn:"Burn",poison:"Poison",paralyze:"Paralyze",freeze:"Freeze",sleep:"Sleep"}[c.status]||c.status;
+        const sCol = {burn:[255,120,20],poison:[180,60,200],paralyze:[255,240,60],freeze:[150,220,255],sleep:[160,160,200]}[c.status]||COL_RED;
+        this.text(rx + 175, ry + 82, sTxt, sCol, 10);
+      }
+      // Moves section
+      this.text(rx + 10, ry + 192, "MOVES", COL_YELLOW, 11);
+      for (let i = 0; i < c.moves.length; i++) {
+        const mv = c.moves[i]; const md = MOVES[mv.id];
+        if (!md) continue;
+        const my = ry + 206 + i * 34;
+        this.rect(rx + 8, my, 302, 30, [35, 35, 50]);
+        const tc = TYPE_COLORS[md.type] || COL_GRAY;
+        this.rect(rx + 10, my + 2, 4, 26, tc);
+        this.text(rx + 20, my + 13, md.name, COL_WHITE, 11);
+        this.text(rx + 20, my + 26, md.type + " " + (md.category === 0 ? "Phys" : md.category === 1 ? "Spec" : "Status"), COL_GRAY, 9);
+        this.text(rx + 170, my + 13, "PP:" + mv.pp + "/" + mv.maxPP, COL_LGRAY, 9);
+        if (md.power > 0) this.text(rx + 240, my + 13, "Pow:" + md.power, COL_LGRAY, 9);
+        this.text(rx + 170, my + 26, "Acc:" + md.accuracy + "%", COL_LGRAY, 9);
+      }
+      // Action buttons
+      const btns = mode === "swap" ? ["Swap Here","Cancel"] : ["Swap","Summary","Back"];
+      for (let i = 0; i < btns.length; i++) {
+        const bx = rx + 10 + i * 100, by = ry + 355;
+        this.rect(bx, by, 92, 22, [40, 40, 60]);
+        this.ctx.strokeStyle = rgb(COL_LGRAY); this.ctx.lineWidth = 1;
+        this.ctx.strokeRect(bx, by, 92, 22);
+        this.text(bx + 46, by + 14, btns[i], COL_WHITE, 10, true);
+      }
+    }
+  }
+
+  // World Map Screen
+  worldMapScreen(player, currentMapName, cursor, t) {
+    const ctx = this.ctx;
+    ctx.globalAlpha = 0.6; ctx.fillStyle = rgb(COL_BLACK); ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
+    ctx.globalAlpha = 1;
+    this.box(20, 20, 440, 440);
+    this.text(240, 38, "WORLD MAP", COL_YELLOW, 16, true);
+    // Map layout - simplified node map
+    const locations = [
+      { name: "Starter Town", x: 240, y: 400, desc: "Your hometown" },
+      { name: "Route 1", x: 240, y: 350, desc: "A peaceful path" },
+      { name: "Verdant Town", x: 240, y: 290, desc: "A verdant town" },
+      { name: "Route 2", x: 240, y: 235, desc: "Rocky terrain" },
+      { name: "Frostbite Cavern", x: 110, y: 180, desc: "Icy caves" },
+      { name: "Route 3", x: 240, y: 180, desc: "Mountain pass" },
+      { name: "Gale Island", x: 380, y: 180, desc: "Windy island" },
+      { name: "Route 4", x: 240, y: 130, desc: "Desolate road" },
+      { name: "Grand Colosseum", x: 240, y: 75, desc: "Battle arena" },
+      { name: "Victory Road", x: 100, y: 75, desc: "Final challenge" },
+      { name: "Elite Hall", x: 380, y: 75, desc: "Elite Four" },
+      { name: "Deep Pit", x: 100, y: 130, desc: "Dark abyss" }
+    ];
+    // Connections (index pairs)
+    const connections = [
+      [0,1],[1,2],[2,3],[3,4],[3,5],[3,6],[5,7],[7,8],[8,9],[8,10],[4,11]
+    ];
+    // Draw connections
+    ctx.strokeStyle = rgb([80, 80, 100]); ctx.lineWidth = 2;
+    for (const [a, b] of connections) {
+      ctx.beginPath();
+      ctx.moveTo(locations[a].x, locations[a].y);
+      ctx.lineTo(locations[b].x, locations[b].y);
+      ctx.stroke();
+    }
+    // Find current location by name
+    let curIdx = locations.findIndex(l => l.name === currentMapName);
+    // Draw nodes
+    for (let i = 0; i < locations.length; i++) {
+      const loc = locations[i];
+      const isCurrent = i === curIdx;
+      const isCursor = i === cursor;
+      const nodeR = isCurrent ? 10 : 7;
+      // Glow for current
+      if (isCurrent) {
+        const pulse = 0.3 + Math.sin(t * 4) * 0.15;
+        ctx.globalAlpha = pulse;
+        ctx.fillStyle = rgb(COL_GREEN);
+        ctx.beginPath(); ctx.arc(loc.x, loc.y, nodeR + 6, 0, Math.PI * 2); ctx.fill();
+        ctx.globalAlpha = 1;
+      }
+      // Node
+      ctx.fillStyle = rgb(isCurrent ? COL_GREEN : (isCursor ? COL_YELLOW : COL_LGRAY));
+      ctx.beginPath(); ctx.arc(loc.x, loc.y, nodeR, 0, Math.PI * 2); ctx.fill();
+      if (isCursor) {
+        ctx.strokeStyle = rgb(COL_YELLOW); ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(loc.x, loc.y, nodeR + 3, 0, Math.PI * 2); ctx.stroke();
+      }
+      // Label
+      const labelCol = isCurrent ? COL_GREEN : (isCursor ? COL_YELLOW : COL_WHITE);
+      this.text(loc.x, loc.y + nodeR + 14, loc.name, labelCol, 9, true);
+      if (isCursor) {
+        this.text(loc.x, loc.y + nodeR + 26, loc.desc, COL_GRAY, 8, true);
+      }
+    }
+    // Player marker
+    if (curIdx >= 0) {
+      const px = locations[curIdx].x, py = locations[curIdx].y;
+      const bob = Math.sin(t * 4) * 2;
+      ctx.fillStyle = rgb(COL_YELLOW);
+      ctx.beginPath(); ctx.moveTo(px, py - 14 + bob); ctx.lineTo(px - 4, py - 20 + bob); ctx.lineTo(px + 4, py - 20 + bob); ctx.fill();
+    }
+    this.text(240, 450, "Scroll=Navigate  Click/Right-click=Back", COL_GRAY, 10, true);
+  }
 }
