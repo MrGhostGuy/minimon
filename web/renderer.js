@@ -54,34 +54,158 @@ class Renderer {
 
   townMap(m, px, py, t) {
     const ctx = this.ctx;
+    const seededRand = (x, y) => {
+      let h = x * 374761393 + y * 668265263;
+      h = (h ^ (h >> 13)) * 1274126177;
+      h = h ^ (h >> 16);
+      return (h & 0x7fffffff) / 0x7fffffff;
+    };
     for (let y = 0; y < Math.min(m.height, MAP_Y); y++) {
       for (let x = 0; x < Math.min(m.width, MAP_X); x++) {
         const tile = getT(m, x, y);
-        const col = TILE_COLORS[tile] || COL_GRAY;
         const sx = x * TILE, sy = y * TILE;
-        ctx.fillStyle = rgb(col); ctx.fillRect(sx, sy, TILE - 1, TILE - 1);
-        if (tile === TILE_TGRASS) {
-          ctx.strokeStyle = rgb([50, 130, 40]); ctx.lineWidth = 1;
-          for (let i = 0; i < 3; i++) { ctx.beginPath(); ctx.moveTo(sx + 4 + i * 7, sy + TILE - 6); ctx.lineTo(sx + 6 + i * 7, sy + TILE - 14); ctx.stroke(); }
+        if (tile === TILE_GRASS) {
+          ctx.fillStyle = rgb([74, 140, 63]);
+          ctx.fillRect(sx, sy, TILE - 1, TILE - 1);
+          ctx.fillStyle = rgb([60, 120, 50]);
+          for (let i = 0; i < 5; i++) {
+            const dx = Math.floor(seededRand(x * 10 + i, y * 10) * (TILE - 4));
+            const dy = Math.floor(seededRand(x * 10, y * 10 + i) * (TILE - 4));
+            ctx.fillRect(sx + dx + 1, sy + dy + 1, 2, 2);
+          }
+        } else if (tile === TILE_TGRASS) {
+          ctx.fillStyle = rgb([45, 107, 48]);
+          ctx.fillRect(sx, sy, TILE - 1, TILE - 1);
+          ctx.strokeStyle = rgb([35, 90, 38]);
+          ctx.lineWidth = 1;
+          for (let i = 0; i < 4; i++) {
+            const sway = Math.sin(t * 3 + i * 1.5 + x * 0.5) * 2;
+            const bx = sx + 3 + i * 5;
+            ctx.beginPath();
+            ctx.moveTo(bx, sy + TILE - 2);
+            ctx.lineTo(bx + sway, sy + 4);
+            ctx.stroke();
+          }
+          ctx.strokeStyle = rgb([65, 130, 55]);
+          for (let i = 0; i < 3; i++) {
+            const sway = Math.sin(t * 3 + i * 1.5 + x * 0.5) * 2;
+            const bx = sx + 5 + i * 6;
+            ctx.beginPath();
+            ctx.moveTo(bx + sway, sy + 6);
+            ctx.lineTo(bx + sway, sy + 2);
+            ctx.stroke();
+          }
         } else if (tile === TILE_WATER) {
-          const wave = Math.sin(t * 2 + x * 0.5) * 2;
-          ctx.strokeStyle = rgb([80, 160, 255]); ctx.lineWidth = 1; ctx.beginPath();
-          ctx.moveTo(sx + 2, sy + 8 + wave); ctx.lineTo(sx + TILE - 4, sy + 8 + wave); ctx.stroke();
+          ctx.fillStyle = rgb([48, 104, 176]);
+          ctx.fillRect(sx, sy, TILE - 1, TILE - 1);
+          ctx.strokeStyle = rgb([60, 120, 190]);
+          ctx.lineWidth = 1;
+          const waveShift = Math.sin(t * 1.5 + y * 0.8) * 3;
+          ctx.beginPath();
+          ctx.moveTo(sx + 2, sy + 8 + waveShift);
+          ctx.lineTo(sx + TILE - 3, sy + 8 + waveShift);
+          ctx.stroke();
+          ctx.beginPath();
+          ctx.moveTo(sx + 4, sy + 16 - waveShift);
+          ctx.lineTo(sx + TILE - 5, sy + 16 - waveShift);
+          ctx.stroke();
+          for (let i = 0; i < 3; i++) {
+            const sparkleTime = t * 4 + i * 2.1 + x * 0.7;
+            const sparkle = Math.sin(sparkleTime);
+            if (sparkle > 0.6) {
+              const sparkleX = sx + 4 + Math.floor(seededRand(x + i, y) * (TILE - 8));
+              const sparkleY = sy + 4 + Math.floor(seededRand(x, y + i) * (TILE - 8));
+              ctx.fillStyle = rgb([255, 255, 255]);
+              ctx.globalAlpha = (sparkle - 0.6) * 2.5;
+              ctx.fillRect(sparkleX, sparkleY, 2, 2);
+              ctx.globalAlpha = 1;
+            }
+          }
+        } else if (tile === TILE_PATH) {
+          ctx.fillStyle = rgb([196, 168, 122]);
+          ctx.fillRect(sx, sy, TILE - 1, TILE - 1);
+          ctx.fillStyle = rgb([180, 152, 108]);
+          for (let i = 0; i < 3; i++) {
+            const dx = Math.floor(seededRand(x * 7 + i, y * 7) * (TILE - 4));
+            const dy = Math.floor(seededRand(x * 7, y * 7 + i) * (TILE - 4));
+            ctx.fillRect(sx + dx + 1, sy + dy + 1, 2, 1);
+          }
+        } else if (tile === TILE_TREE) {
+          ctx.fillStyle = rgb([45, 107, 48]);
+          ctx.fillRect(sx, sy, TILE - 1, TILE - 1);
+          ctx.fillStyle = rgb([55, 125, 58]);
+          for (let i = 0; i < 3; i++) {
+            const dx = Math.floor(seededRand(x * 11 + i, y * 11) * (TILE - 6)) + 1;
+            const dy = Math.floor(seededRand(x * 11, y * 11 + i) * (TILE - 10)) + 1;
+            ctx.fillRect(sx + dx, sy + dy, 4, 3);
+          }
+          ctx.fillStyle = rgb([107, 66, 38]);
+          ctx.fillRect(sx + 8, sy + TILE - 6, 8, 5);
+          ctx.fillStyle = rgb([90, 55, 32]);
+          ctx.fillRect(sx + 10, sy + TILE - 5, 4, 4);
+        } else if (tile === TILE_WALL) {
+          ctx.fillStyle = rgb([136, 136, 136]);
+          ctx.fillRect(sx, sy, TILE - 1, TILE - 1);
+          ctx.strokeStyle = rgb([115, 115, 115]);
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.moveTo(sx, sy + 7); ctx.lineTo(sx + TILE - 1, sy + 7);
+          ctx.moveTo(sx, sy + 15); ctx.lineTo(sx + TILE - 1, sy + 15);
+          ctx.stroke();
+          ctx.beginPath();
+          ctx.moveTo(sx + 8, sy); ctx.lineTo(sx + 8, sy + 7);
+          ctx.moveTo(sx + 16, sy + 7); ctx.lineTo(sx + 16, sy + 15);
+          ctx.moveTo(sx + 8, sy + 15); ctx.lineTo(sx + 8, sy + TILE - 1);
+          ctx.stroke();
         } else if (tile === TILE_HEAL) {
-          ctx.fillStyle = rgb(COL_RED); ctx.fillRect(sx + 4, sy + 4, TILE - 8, TILE - 8);
-          ctx.strokeStyle = rgb(COL_WHITE); ctx.lineWidth = 2;
-          ctx.beginPath(); ctx.moveTo(sx + 8, sy + 6); ctx.lineTo(sx + 8, sy + TILE - 6); ctx.stroke();
-          ctx.beginPath(); ctx.moveTo(sx + 4, sy + 10); ctx.lineTo(sx + 12, sy + 10); ctx.stroke();
+          ctx.fillStyle = rgb([220, 50, 50]);
+          ctx.fillRect(sx, sy, TILE - 1, TILE - 1);
+          ctx.fillStyle = rgb([255, 255, 255]);
+          ctx.fillRect(sx + 9, sy + 3, 6, TILE - 4);
+          ctx.fillRect(sx + 3, sy + 9, TILE - 4, 6);
         } else if (tile === TILE_SHOP) {
-          ctx.fillStyle = rgb(COL_BLUE); ctx.fillRect(sx + 4, sy + 4, TILE - 8, TILE - 8);
-          this.text(sx + 7, sy + 16, "S", COL_WHITE, 12);
+          ctx.fillStyle = rgb([50, 100, 220]);
+          ctx.fillRect(sx, sy, TILE - 1, TILE - 1);
+          ctx.fillStyle = rgb([255, 255, 255]);
+          ctx.fillRect(sx + 6, sy + 8, 12, 12);
+          ctx.fillStyle = rgb([50, 100, 220]);
+          ctx.fillRect(sx + 8, sy + 10, 8, 8);
+          ctx.strokeStyle = rgb([255, 255, 255]);
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(sx + 12, sy + 8, 4, Math.PI, 0);
+          ctx.stroke();
         } else if (tile === TILE_GYM) {
-          ctx.fillStyle = rgb(COL_YELLOW); ctx.fillRect(sx + 2, sy + 2, TILE - 4, TILE - 4);
-          ctx.fillStyle = rgb(COL_BLACK); ctx.fillRect(sx + 4, sy + 4, TILE - 8, TILE - 8);
-          this.text(sx + 7, sy + 16, "G", COL_YELLOW, 12);
+          ctx.fillStyle = rgb([220, 180, 50]);
+          ctx.fillRect(sx, sy, TILE - 1, TILE - 1);
+          ctx.fillStyle = rgb([255, 220, 80]);
+          const cx2 = sx + TILE / 2, cy2 = sy + TILE / 2;
+          ctx.beginPath();
+          for (let i = 0; i < 5; i++) {
+            const angle = (i * 4 * Math.PI / 5) - Math.PI / 2;
+            const method = i === 0 ? 'moveTo' : 'lineTo';
+            ctx[method](cx2 + Math.cos(angle) * 7, cy2 + Math.sin(angle) * 7);
+          }
+          ctx.closePath();
+          ctx.fill();
+          ctx.fillStyle = rgb([200, 160, 40]);
+          ctx.beginPath();
+          for (let i = 0; i < 5; i++) {
+            const angle = (i * 4 * Math.PI / 5) - Math.PI / 2;
+            const method = i === 0 ? 'moveTo' : 'lineTo';
+            ctx[method](cx2 + Math.cos(angle) * 3, cy2 + Math.sin(angle) * 3);
+          }
+          ctx.closePath();
+          ctx.fill();
         } else if (tile === TILE_SIGN) {
-          ctx.fillStyle = rgb([139, 119, 73]); ctx.fillRect(sx + 6, sy + 8, TILE - 12, TILE - 10);
-          ctx.fillStyle = rgb([100, 80, 50]); ctx.fillRect(sx + 10, sy + TILE - 4, 4, 6);
+          ctx.fillStyle = rgb([139, 119, 73]);
+          ctx.fillRect(sx + 6, sy + 8, TILE - 12, TILE - 10);
+          ctx.fillStyle = rgb([100, 80, 50]);
+          ctx.fillRect(sx + 10, sy + TILE - 4, 4, 6);
+        } else {
+          const col = TILE_COLORS[tile] || COL_GRAY;
+          ctx.fillStyle = rgb(col);
+          ctx.fillRect(sx, sy, TILE - 1, TILE - 1);
         }
       }
     }
@@ -90,20 +214,67 @@ class Renderer {
   }
 
   hud(player, mapName) {
-    this.box(0, 0, SCREEN_W, 22, COL_WHITE, [20, 20, 30]);
-    this.text(8, 16, "Map: " + mapName, COL_WHITE, 11);
-    this.text(160, 16, "Steps: " + player.stepCounter, COL_GRAY, 11);
-    this.text(270, 16, "$: " + player.money, COL_YELLOW, 11);
-    const badgeStr = "Badges: " + player.badges.length + "/8";
-    this.text(370, 16, badgeStr, player.badges.length >= 8 ? COL_YELLOW : COL_LGRAY, 11);
+    const ctx = this.ctx;
+    ctx.fillStyle = rgb([15, 15, 25]);
+    ctx.globalAlpha = 0.85;
+    ctx.fillRect(0, 0, SCREEN_W, 24);
+    ctx.globalAlpha = 1;
+    ctx.strokeStyle = rgb([60, 80, 140]);
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(0, 24);
+    ctx.lineTo(SCREEN_W, 24);
+    ctx.stroke();
+    this.text(8, 16, mapName, COL_WHITE, 12);
+    ctx.fillStyle = rgb(COL_YELLOW);
+    ctx.fillRect(SCREEN_W - 100, 6, 8, 8);
+    ctx.fillStyle = rgb([255, 200, 50]);
+    ctx.fillRect(SCREEN_W - 99, 7, 6, 6);
+    this.text(SCREEN_W - 88, 15, "$" + player.money, COL_YELLOW, 11);
+    const party = player.party || [];
+    for (let i = 0; i < Math.min(party.length, 6); i++) {
+      const dotX = 8 + i * 14;
+      const dotY = 20;
+      const hpRatio = party[i].hp / Math.max(1, party[i].maxHP);
+      const dotCol = hpRatio > 0.5 ? COL_HPG : hpRatio > 0.2 ? COL_HPY : COL_HPR;
+      ctx.fillStyle = rgb([40, 40, 50]);
+      ctx.fillRect(dotX, dotY, 10, 3);
+      ctx.fillStyle = rgb(dotCol);
+      ctx.fillRect(dotX, dotY, Math.floor(10 * Math.max(0, Math.min(1, hpRatio))), 3);
+    }
   }
 
   dialogBox(text, speaker) {
-    this.box(10, 350, 460, 120);
-    if (speaker) this.text(20, 368, speaker, COL_YELLOW, 14);
-    const lines = this.wrapText(text, 440);
-    for (let i = 0; i < Math.min(lines.length, 4); i++) this.text(20, 386 + i * 18, lines[i], COL_WHITE, 14);
-    this.text(420, 462, "Click/Scroll", COL_GRAY, 11);
+    const ctx = this.ctx;
+    const bx = 10, by = 340, bw = 460, bh = 130;
+    ctx.globalAlpha = 0.5;
+    ctx.fillStyle = rgb(COL_BLACK);
+    ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
+    ctx.globalAlpha = 1;
+    const grad = ctx.createLinearGradient(bx, by, bx, by + bh);
+    grad.addColorStop(0, '#1a2a5c');
+    grad.addColorStop(1, '#2a3a7c');
+    ctx.fillStyle = grad;
+    ctx.fillRect(bx, by, bw, bh);
+    ctx.strokeStyle = rgb(COL_WHITE);
+    ctx.lineWidth = 2;
+    ctx.strokeRect(bx + 1, by + 1, bw - 2, bh - 2);
+    ctx.strokeStyle = rgb([100, 120, 180]);
+    ctx.lineWidth = 1;
+    ctx.strokeRect(bx + 4, by + 4, bw - 8, bh - 8);
+    if (speaker) this.text(bx + 14, by + 20, speaker, COL_YELLOW, 14);
+    const lines = this.wrapText(text, bw - 28);
+    const textY = speaker ? by + 38 : by + 18;
+    for (let i = 0; i < Math.min(lines.length, 4); i++) this.text(bx + 14, textY + i * 20, lines[i], COL_WHITE, 14);
+    const arrowBob = Math.sin(Date.now() / 200) > 0;
+    if (arrowBob) {
+      ctx.fillStyle = rgb(COL_WHITE);
+      ctx.beginPath();
+      ctx.moveTo(bx + bw - 24, by + bh - 18);
+      ctx.lineTo(bx + bw - 16, by + bh - 10);
+      ctx.lineTo(bx + bw - 8, by + bh - 18);
+      ctx.fill();
+    }
   }
 
   // ===== TITLE SCREEN - Pokemon Gen 3-5 Style =====
@@ -537,11 +708,37 @@ class Renderer {
   }
 
   drawMapTransition() {
-    if (this.mapTransition > 0) {
-      this.ctx.globalAlpha = this.mapTransition;
-      this.ctx.fillStyle = rgb(COL_BLACK);
-      this.ctx.fillRect(0, 0, this.w, this.h);
-      this.ctx.globalAlpha = 1;
+    if (this.mapTransition <= 0) return;
+    const ctx = this.ctx;
+    const mt = this.mapTransition;
+    if (mt < 0.2) {
+      const shakeIntensity = (1 - mt / 0.2) * 4;
+      ctx.save();
+      ctx.translate(
+        (Math.random() - 0.5) * shakeIntensity,
+        (Math.random() - 0.5) * shakeIntensity
+      );
+    }
+    if (mt > 0 && mt < 0.15) {
+      const flashAlpha = 1.0 - (mt / 0.15);
+      ctx.globalAlpha = flashAlpha * 0.8;
+      ctx.fillStyle = rgb(COL_WHITE);
+      ctx.fillRect(0, 0, this.w, this.h);
+      ctx.globalAlpha = 1;
+    }
+    if (mt >= 0.1) {
+      const barProgress = Math.min(1, (mt - 0.1) / 0.6);
+      const barH = Math.floor((this.h / 2 + 10) * barProgress);
+      ctx.fillStyle = rgb(COL_BLACK);
+      ctx.fillRect(0, 0, this.w, barH);
+      ctx.fillRect(0, this.h - barH, this.w, barH);
+    }
+    if (mt > 0.7) {
+      ctx.fillStyle = rgb(COL_BLACK);
+      ctx.fillRect(0, 0, this.w, this.h);
+    }
+    if (mt < 0.2) {
+      ctx.restore();
     }
   }
 
@@ -569,88 +766,155 @@ class Renderer {
     this.text(240, 350, "Congratulations!", COL_WHITE, 14, true);
   }
 
-  // ===== PARTY MENU - Pokemon Style =====
+  // ===== PARTY MENU - Pokemon Party Screen Style =====
   partyMenu(party, sel) {
     const ctx = this.ctx;
-    this.box(10, 30, 460, 420);
-    this.text(240, 48, "YOUR TEAM", COL_YELLOW, 14, true);
+    const bx = 10, by = 30, bw = 460, bh = 420;
+
+    const partyGrad = ctx.createLinearGradient(bx, by, bx, by + bh);
+    partyGrad.addColorStop(0, rgb([20, 45, 95]));
+    partyGrad.addColorStop(0.5, rgb([15, 35, 75]));
+    partyGrad.addColorStop(1, rgb([10, 25, 55]));
+    ctx.fillStyle = partyGrad;
+    ctx.fillRect(bx, by, bw, bh);
+    ctx.strokeStyle = rgb(COL_WHITE); ctx.lineWidth = 3;
+    ctx.strokeRect(bx - 2, by - 2, bw + 4, bh + 4);
+    ctx.strokeStyle = rgb([120, 150, 200]); ctx.lineWidth = 2;
+    ctx.strokeRect(bx, by, bw, bh);
+
+    this.text(bx + bw / 2, by + 20, "YOUR TEAM", COL_YELLOW, 14, true);
+
     for (let i = 0; i < party.length; i++) {
-      const c = party[i]; const y = 65 + i * 65;
-      if (i === sel) this.rect(16, y, 448, 60, COL_SELECT, 0.3);
-      this.box(16, y, 448, 60, i === sel ? COL_SELECT : COL_WHITE);
-      this.creatureSprite(24, y + 5, 50, c.dex, c.level);
-      this.text(85, y + 20, c.name, COL_WHITE, 14);
-      this.text(85, y + 36, "Lv." + c.level, COL_GRAY, 11);
-      this.text(85, y + 50, c.types.join("/"), TYPE_COLORS[c.types[0]] || COL_GRAY, 11);
-      this.hpBar(280, y + 20, 180, 8, c.hp / Math.max(1, c.maxHP));
-      this.text(280, y + 38, "HP: " + c.hp + "/" + c.maxHP, COL_WHITE, 11);
-      this.text(280, y + 52, "ATK:" + c.stats[1] + " DEF:" + c.stats[2], COL_GRAY, 11);
+      const c = party[i];
+      const y = by + 36 + i * 64;
+      const cardH = 58;
+      const sel2 = i === sel;
+
+      if (sel2) {
+        ctx.strokeStyle = rgb(COL_YELLOW); ctx.lineWidth = 2;
+        ctx.strokeRect(bx + 8, y - 2, bw - 16, cardH + 4);
+      } else {
+        ctx.strokeStyle = rgb([80, 110, 160]); ctx.lineWidth = 1;
+        ctx.strokeRect(bx + 8, y - 2, bw - 16, cardH + 4);
+      }
+
+      const fainted = c.hp <= 0;
+      if (fainted) {
+        ctx.globalAlpha = 0.5;
+      }
+
+      this.creatureSprite(bx + 14, y + 4, 46, c.dex);
+
+      this.text(bx + 70, y + 16, c.name, sel2 ? COL_WHITE : COL_LGRAY, 13);
+      this.text(bx + 70, y + 32, "Lv." + c.level, COL_LGRAY, 11);
+
+      const tc = TYPE_COLORS[c.types[0]] || COL_GRAY;
+      this.rect(bx + 70, y + 38, 40, 12, tc);
+      this.text(bx + 90, y + 47, c.types[0], COL_WHITE, 8, true);
+      if (c.types.length > 1) {
+        const tc2 = TYPE_COLORS[c.types[1]] || COL_GRAY;
+        this.rect(bx + 114, y + 38, 40, 12, tc2);
+        this.text(bx + 134, y + 47, c.types[1], COL_WHITE, 8, true);
+      }
+
+      const hpX = bx + 170, hpW = 140;
+      this.rect(hpX, y + 14, hpW, 10, [40, 40, 55]);
+      const hpRatio = c.hp / Math.max(1, c.maxHP);
+      const hpCol = hpRatio > 0.5 ? COL_HPG : hpRatio > 0.2 ? COL_HPY : COL_HPR;
+      const fw = Math.floor(hpW * Math.max(0, Math.min(1, hpRatio)));
+      if (fw > 0) this.rect(hpX, y + 14, fw, 10, hpCol);
+      this.text(hpX, y + 10, "HP", COL_LGRAY, 8);
+      this.text(hpX + hpW + 6, y + 22, c.hp + "/" + c.maxHP, COL_WHITE, 10);
+
       if (c.status) {
         const sCol = {burn:[255,120,20],poison:[180,60,200],paralyze:[255,240,60],freeze:[150,220,255],sleep:[160,160,200]}[c.status]||COL_RED;
-        const sTxt = {burn:"BRN",poison:"PSN",paralyze:"PAR",freeze:"FRZ",sleep:"SLP"}[c.status]||c.status;
-        this.text(440, y + 52, sTxt, sCol, 10, true);
+        const sTxt = {burn:"BRN",poison:"PSN",paralyze:"PAR",freeze:"FRZ",sleep:"SLP"}[c.status]||"";
+        if (sTxt) {
+          this.rect(hpX, y + 30, 34, 14, [30, 30, 50]);
+          this.text(hpX + 17, y + 40, sTxt, sCol, 9, true);
+        }
       }
+
+      if (fainted) {
+        this.text(hpX + 50, y + 40, "FAINTED", COL_RED, 10);
+      }
+
+      if (sel2) {
+        this.menuCursor(bx + 10, y + 16, 0);
+      }
+
+      if (fainted) ctx.globalAlpha = 1;
     }
+
+    if (sel2) this.menuCursor(bx + 10, by + 36 + sel * 64 + 16, 0);
   }
 
   // ===== MOVE MENU - Pokemon Style 2x2 Grid =====
   moveMenu(moves, sel, creature, newMoveName) {
     const ctx = this.ctx;
-    this.box(10, 30, 460, 280);
-    this.text(240, 48, newMoveName ? "Learn " + newMoveName + " - Forget which?" : "CHOOSE MOVE", COL_YELLOW, 14, true);
+    const bx = 10, by = 30, bw = 460, bh = 280;
 
-    // PP display
+    const mvGrad = ctx.createLinearGradient(bx, by, bx, by + bh);
+    mvGrad.addColorStop(0, rgb([20, 45, 95]));
+    mvGrad.addColorStop(0.5, rgb([15, 35, 75]));
+    mvGrad.addColorStop(1, rgb([10, 25, 55]));
+    ctx.fillStyle = mvGrad;
+    ctx.fillRect(bx, by, bw, bh);
+    ctx.strokeStyle = rgb(COL_WHITE); ctx.lineWidth = 3;
+    ctx.strokeRect(bx - 2, by - 2, bw + 4, bh + 4);
+    ctx.strokeStyle = rgb([120, 150, 200]); ctx.lineWidth = 2;
+    ctx.strokeRect(bx, by, bw, bh);
+
+    this.text(bx + bw / 2, by + 18, newMoveName ? "Learn " + newMoveName + " - Forget which?" : "CHOOSE MOVE", COL_YELLOW, 13, true);
+
     if (creature && !newMoveName) {
-      this.text(400, 48, "PP: " + creature.moves.reduce((a, m) => a + m.pp, 0) + "/" + creature.moves.reduce((a, m) => a + m.maxPP, 0), COL_LGRAY, 10);
+      this.text(bx + bw - 20, by + 18, "PP: " + creature.moves.reduce((a, m) => a + m.pp, 0) + "/" + creature.moves.reduce((a, m) => a + m.maxPP, 0), COL_LGRAY, 9, true);
     }
 
-    // 2x2 grid for 4 moves
-    const gridX = 30, gridY = 64, cellW = 210, cellH = 105;
+    const gridX = bx + 18, gridY = by + 32, cellW = 208, cellH = 108;
     for (let i = 0; i < moves.length; i++) {
       const mv = moves[i]; const md = MOVES[mv.id]; if (!md) continue;
       const col = i % 2, row = Math.floor(i / 2);
-      const cx = gridX + col * (cellW + 10), cy = gridY + row * (cellH + 6);
+      const cx = gridX + col * (cellW + 12), cy = gridY + row * (cellH + 8);
       const isSel = i === sel;
-
-      // Type-colored background
       const tc = TYPE_COLORS[md.type] || COL_GRAY;
-      this.rect(cx, cy, cellW, cellH, isSel ? [50, 50, 70] : [25, 25, 40]);
 
-      // Type color bar on left
-      this.rect(cx, cy, 6, cellH, tc);
-
-      // Selection highlight
       if (isSel) {
-        this.ctx.strokeStyle = rgb(COL_YELLOW);
-        this.ctx.lineWidth = 2;
-        this.ctx.strokeRect(cx, cy, cellW, cellH);
+        const cellGrad = ctx.createLinearGradient(cx, cy, cx, cy + cellH);
+        cellGrad.addColorStop(0, rgb([45, 60, 95]));
+        cellGrad.addColorStop(1, rgb([30, 45, 75]));
+        ctx.fillStyle = cellGrad;
       } else {
-        this.ctx.strokeStyle = rgb([60, 60, 80]);
-        this.ctx.lineWidth = 1;
-        this.ctx.strokeRect(cx, cy, cellW, cellH);
+        ctx.fillStyle = rgb([22, 32, 55]);
+      }
+      ctx.fillRect(cx, cy, cellW, cellH);
+
+      ctx.fillStyle = rgb(tc);
+      ctx.fillRect(cx, cy, 6, cellH);
+
+      if (isSel) {
+        ctx.strokeStyle = rgb(COL_YELLOW); ctx.lineWidth = 2;
+        ctx.strokeRect(cx - 1, cy - 1, cellW + 2, cellH + 2);
+      } else {
+        ctx.strokeStyle = rgb([50, 65, 95]); ctx.lineWidth = 1;
+        ctx.strokeRect(cx, cy, cellW, cellH);
       }
 
-      // Move name
       this.text(cx + 14, cy + 20, md.name, isSel ? COL_WHITE : COL_LGRAY, 14);
 
-      // Type badge
-      this.rect(cx + 14, cy + 32, 50, 14, tc);
-      this.text(cx + 39, cy + 43, md.type, COL_WHITE, 8, true);
+      this.rect(cx + 14, cy + 30, 48, 13, tc);
+      this.text(cx + 38, cy + 40, md.type, COL_WHITE, 8, true);
 
-      // Category badge
-      const catName = md.category === PHYSICAL ? "Phys" : md.category === SPECIAL ? "Spec" : "Status";
-      const catCol = md.category === PHYSICAL ? COL_RED : md.category === SPECIAL ? COL_BLUE : COL_LGRAY;
-      this.rect(cx + 70, cy + 32, 40, 14, [40, 40, 55]);
-      this.text(cx + 90, cy + 43, catName, catCol, 8, true);
+      const catName = md.category === 0 ? "Phys" : md.category === 1 ? "Spec" : "Status";
+      const catCol = md.category === 0 ? COL_RED : md.category === 1 ? COL_BLUE : COL_LGRAY;
+      this.rect(cx + 66, cy + 30, 38, 13, [35, 45, 65]);
+      this.text(cx + 85, cy + 40, catName, catCol, 8, true);
 
-      // PP
-      this.text(cx + 14, cy + 60, "PP: " + mv.pp + "/" + mv.maxPP, mv.pp > 0 ? COL_LGRAY : COL_RED, 10);
+      this.text(cx + 14, cy + 58, "PP: " + mv.pp + "/" + mv.maxPP, mv.pp > 0 ? COL_LGRAY : COL_RED, 10);
 
-      // Power & Accuracy
       if (md.power > 0) this.text(cx + 14, cy + 74, "Pow: " + md.power, COL_LGRAY, 10);
-      this.text(cx + 14, cy + 88, "Acc: " + md.accuracy + "%", COL_LGRAY, 10);
+      this.text(cx + 110, cy + 74, "Acc: " + md.accuracy + "%", COL_LGRAY, 10);
 
-      // Effect
       if (md.effect) {
         const effDesc = {burn:"BRN",freeze:"FRZ",paralyze:"PAR",poison:"PSN",sleep:"SLP",
           flinch:"Flinch",crit_boost:"High Crit",recoil:"Recoil",recover:"Heal",
@@ -658,16 +922,13 @@ class Renderer {
           atk_up:"ATK+",def_up:"DEF+",spd_up:"SPD+",satk_up:"SP.ATK+",sdef_up:"SP.DEF+",
           atk_down:"ATK-",def_down:"DEF-",spd_down:"SPD-",satk_down:"SP.ATK-",sdef_down:"SP.DEF-",
           atk_spd_up:"ATK+SPD",protect:"Prot.",sandstorm:"Sand",spite:"Spite"}[md.effect]||md.effect;
-        this.text(cx + 80, cy + 60, effDesc, COL_YELLOW, 9);
+        this.text(cx + 14, cy + 90, effDesc, COL_YELLOW, 9);
       }
 
-      // Cursor arrow
-      if (isSel) {
-        this.menuCursor(cx - 10, cy + 10, t);
-      }
+      if (isSel) this.menuCursor(cx - 10, cy + 8, 0);
     }
 
-    this.text(240, 296, "Click = Use  |  Right-click = Back", COL_GRAY, 10, true);
+    this.text(bx + bw / 2, by + bh - 10, "Click = Use  |  Right-click = Back", COL_GRAY, 9, true);
   }
 
   tmSelectMenu(compatible, sel, moveName, tmItemId) {
@@ -688,26 +949,107 @@ class Renderer {
   }
 
   shopMenu(items, sel, money) {
-    this.box(10, 30, 460, 420); this.text(240, 48, "SHOP", COL_YELLOW, 14, true);
-    this.text(400, 48, "$" + money, COL_YELLOW, 11);
-    const maxV = 10; const off = Math.max(0, sel - maxV + 1);
+    const ctx = this.ctx;
+    const bx = 10, by = 30, bw = 460, bh = 420;
+
+    const shopGrad = ctx.createLinearGradient(bx, by, bx, by + bh);
+    shopGrad.addColorStop(0, rgb([20, 45, 95]));
+    shopGrad.addColorStop(0.5, rgb([15, 35, 75]));
+    shopGrad.addColorStop(1, rgb([10, 25, 55]));
+    ctx.fillStyle = shopGrad;
+    ctx.fillRect(bx, by, bw, bh);
+    ctx.strokeStyle = rgb(COL_WHITE); ctx.lineWidth = 3;
+    ctx.strokeRect(bx - 2, by - 2, bw + 4, bh + 4);
+    ctx.strokeStyle = rgb([120, 150, 200]); ctx.lineWidth = 2;
+    ctx.strokeRect(bx, by, bw, bh);
+
+    const headerGrad = ctx.createLinearGradient(bx, by, bx, by + 30);
+    headerGrad.addColorStop(0, rgb([200, 180, 40]));
+    headerGrad.addColorStop(1, rgb([180, 150, 20]));
+    ctx.fillStyle = headerGrad;
+    ctx.fillRect(bx + 8, by + 4, bw - 16, 28);
+    ctx.strokeStyle = rgb([240, 220, 80]); ctx.lineWidth = 1;
+    ctx.strokeRect(bx + 8, by + 4, bw - 16, 28);
+    this.text(bx + bw / 2, by + 22, "POKEMON MART", COL_BLACK, 14, true);
+
+    this.text(bx + bw - 20, by + 52, "$" + money, COL_YELLOW, 12, true);
+
+    const maxV = 10;
+    const off = Math.max(0, sel - maxV + 1);
+    const listY = by + 64;
+
     for (let i = off; i < Math.min(items.length, off + maxV); i++) {
-      const item = items[i]; const y = 65 + (i - off) * 35;
-      if (i === sel) this.rect(16, y, 448, 30, COL_SELECT, 0.3);
-      const price = PRICES[item] || 100; const canBuy = money >= price;
-      this.text(24, y + 18, item + " - $" + price, i === sel ? COL_WHITE : (canBuy ? COL_LGRAY : COL_GRAY), 14);
+      const item = items[i];
+      const y = listY + (i - off) * 34;
+      const isSel = i === sel;
+      const price = PRICES[item] || 100;
+      const canBuy = money >= price;
+
+      if (isSel) {
+        ctx.fillStyle = rgb([40, 60, 100]);
+        ctx.fillRect(bx + 12, y, bw - 24, 30);
+        ctx.strokeStyle = rgb(COL_YELLOW); ctx.lineWidth = 2;
+        ctx.strokeRect(bx + 12, y, bw - 24, 30);
+      }
+
+      this.text(bx + 20, y + 18, item, isSel ? COL_WHITE : (canBuy ? COL_LGRAY : COL_GRAY), 13);
+
+      this.text(bx + bw - 80, y + 18, "$" + price, isSel ? COL_YELLOW : (canBuy ? [200, 200, 100] : COL_RED), 11);
+
+      const owned = player.inventory[item] || 0;
+      this.text(bx + bw - 20, y + 18, "x" + owned, COL_GRAY, 10, true);
+
+      if (isSel) this.menuCursor(bx + 12, y + 8, 0);
     }
+
+    if (items.length > maxV) {
+      this.text(bx + bw / 2, listY + maxV * 34 + 8, "(" + (sel + 1) + "/" + items.length + ")", COL_GRAY, 10, true);
+    }
+
+    this.text(bx + bw / 2, by + bh - 10, "Scroll=Select  Click=Buy  Right-click=Exit", COL_GRAY, 9, true);
   }
 
   dpad(cx, cy, r, bs) {
-    const ctx = this.ctx; ctx.globalAlpha = 0.25;
-    const dirs = [[0, -1], [0, 1], [-1, 0], [1, 0]];
-    for (const [dx, dy] of dirs) {
-      const bx = cx + dx * r - bs / 2, by = cy + dy * r - bs / 2;
-      ctx.fillStyle = rgb(COL_WHITE); ctx.fillRect(bx, by, bs, bs);
-      ctx.strokeStyle = rgb(COL_LGRAY); ctx.lineWidth = 1; ctx.strokeRect(bx, by, bs, bs);
+    const ctx = this.ctx;
+    ctx.save();
+    ctx.globalAlpha = 0.2;
+    ctx.fillStyle = rgb([20, 20, 30]);
+    ctx.beginPath();
+    ctx.arc(cx, cy, r + bs / 2 + 4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 0.35;
+    const dirs = [
+      { dx: 0, dy: -1, arrow: [[-5, 2], [0, -4], [5, 2]] },
+      { dx: 0, dy: 1, arrow: [[-5, -2], [0, 4], [5, -2]] },
+      { dx: -1, dy: 0, arrow: [[2, -5], [-4, 0], [2, 5]] },
+      { dx: 1, dy: 0, arrow: [[-2, -5], [4, 0], [-2, 5]] }
+    ];
+    for (const dir of dirs) {
+      const bx = cx + dir.dx * r - bs / 2;
+      const by = cy + dir.dy * r - bs / 2;
+      ctx.fillStyle = rgb(COL_WHITE);
+      ctx.fillRect(bx, by, bs, bs);
+      ctx.strokeStyle = rgb([80, 80, 100]);
+      ctx.lineWidth = 1;
+      ctx.strokeRect(bx, by, bs, bs);
+      ctx.fillStyle = rgb([180, 180, 200]);
+      ctx.beginPath();
+      const acx = bx + bs / 2, acy = by + bs / 2;
+      ctx.moveTo(acx + dir.arrow[0][0], acy + dir.arrow[0][1]);
+      ctx.lineTo(acx + dir.arrow[1][0], acy + dir.arrow[1][1]);
+      ctx.lineTo(acx + dir.arrow[2][0], acy + dir.arrow[2][1]);
+      ctx.fill();
     }
+    ctx.globalAlpha = 0.3;
+    ctx.fillStyle = rgb(COL_WHITE);
+    ctx.beginPath();
+    ctx.arc(cx, cy, 6, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = rgb([80, 80, 100]);
+    ctx.lineWidth = 1;
+    ctx.stroke();
     ctx.globalAlpha = 1;
+    ctx.restore();
   }
 
   interactBubble(x, y, t) {
@@ -748,124 +1090,227 @@ class Renderer {
     return mx >= 456 && mx <= 476 && my >= 2 && my <= 20;
   }
 
-  // ===== PAUSE MENU - Pokemon Style =====
+  // ===== PAUSE MENU - Pokemon RSE Start Menu Style =====
   pauseMenu(player, cursor, t) {
     const ctx = this.ctx;
-    // Darken background
-    ctx.globalAlpha = 0.6; ctx.fillStyle = rgb(COL_BLACK); ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
-    ctx.globalAlpha = 1;
-    // Main box with blue Pokemon-style background
-    this.box(30, 20, 420, 440, COL_WHITE, [20, 30, 60]);
-    // Trainer card section
-    this.box(40, 30, 400, 80, COL_LGRAY, [30, 30, 50]);
-    this.text(50, 48, player.name + "'s Trainer Card", COL_YELLOW, 14);
+    const fadeIn = Math.min(1, t * 4);
+
+    ctx.globalAlpha = 0.7 * fadeIn;
+    ctx.fillStyle = rgb(COL_BLACK);
+    ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
+    ctx.globalAlpha = fadeIn;
+
+    const bx = 30, by = 10, bw = 420, bh = 460;
+
+    ctx.strokeStyle = rgb(COL_WHITE); ctx.lineWidth = 3;
+    ctx.strokeRect(bx - 2, by - 2, bw + 4, bh + 4);
+    const menuGrad = ctx.createLinearGradient(bx, by, bx, by + bh);
+    menuGrad.addColorStop(0, rgb([25, 55, 110]));
+    menuGrad.addColorStop(0.4, rgb([18, 40, 85]));
+    menuGrad.addColorStop(1, rgb([12, 25, 55]));
+    ctx.fillStyle = menuGrad;
+    ctx.fillRect(bx, by, bw, bh);
+    ctx.strokeStyle = rgb([140, 170, 220]); ctx.lineWidth = 2;
+    ctx.strokeRect(bx, by, bw, bh);
+
+    ctx.strokeStyle = rgb([80, 110, 170]); ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(bx + 12, by + 120); ctx.lineTo(bx + bw - 12, by + 120); ctx.stroke();
+
+    const cardX = bx + 15, cardY = by + 12, cardW = bw - 30, cardH = 104;
+    ctx.strokeStyle = rgb([100, 140, 200]); ctx.lineWidth = 1;
+    ctx.strokeRect(cardX, cardY, cardW, cardH);
+
+    this.text(bx + bw / 2, cardY + 16, "TRAINER CARD", COL_YELLOW, 15, true);
+
+    if (player.party.length) {
+      this.npcSprite(cardX + 6, cardY + 22, 36, "professor");
+    }
+
+    const infoX = cardX + 50;
+    ctx.fillStyle = rgb(COL_YELLOW);
+    ctx.font = "bold 14px monospace";
+    ctx.fillText(player.name, infoX, cardY + 36);
+    ctx.font = "14px monospace";
+
     const mins = Math.floor(player.playTime / 60);
     const hrs = Math.floor(mins / 60);
-    this.text(50, 68, "Badges: " + player.badges.length + "/8", player.badges.length >= 8 ? COL_YELLOW : COL_LGRAY, 12);
-    this.text(200, 68, "$" + player.money, COL_YELLOW, 12);
-    this.text(320, 68, "Time: " + hrs + "h " + (mins % 60) + "m", COL_GRAY, 11);
-    if (player.party.length) {
-      const c = player.party[0];
-      this.text(50, 88, "Lead: " + c.name + " Lv." + c.level, COL_LGRAY, 11);
-      this.hpBar(220, 82, 100, 6, c.hp / Math.max(1, c.maxHP));
-      this.text(330, 88, "HP:" + c.hp + "/" + c.maxHP, COL_GRAY, 11);
-    }
-    // Badge icons
-    const badgeNames = ["Granite","Steel","Marsh","Frost","Electric","Lava","Inferno","Wind"];
-    for (let i = 0; i < 8; i++) {
-      const bx = 50 + i * 46, by = 100;
-      const has = i < player.badges.length;
-      this.rect(bx, by, 38, 14, has ? [180, 150, 60] : [40, 40, 50]);
-      this.text(bx + 19, by + 11, badgeNames[i], has ? COL_BLACK : COL_GRAY, 7, true);
-    }
-    // Options grid
-    const opts = ["Party","Bag","Pokedex","Save","Load","Map","Close"];
-    const cols = 3, cellW = 130, cellH = 55;
-    const gridX = 55, gridY = 130;
-    for (let i = 0; i < opts.length; i++) {
-      const col = i % cols, row = Math.floor(i / cols);
-      const ox = gridX + col * cellW, oy = gridY + row * cellH;
-      const sel = i === cursor;
-      this.rect(ox, oy, 120, 45, sel ? [60, 60, 90] : [30, 30, 50]);
-      this.ctx.strokeStyle = rgb(sel ? COL_YELLOW : COL_LGRAY);
-      this.ctx.lineWidth = sel ? 2 : 1;
-      this.ctx.strokeRect(ox, oy, 120, 45);
-      if (sel) this.menuCursor(ox + 4, oy + 14, t);
-      const icons = {Party:"P",Bag:"B",Pokedex:"D",Save:"Sv",Load:"Lo",Map:"M",Close:"X"};
-      this.text(ox + 60, oy + 18, icons[opts[i]] || "?", sel ? COL_YELLOW : COL_LGRAY, 18, true);
-      this.text(ox + 60, oy + 36, opts[i], sel ? COL_YELLOW : COL_WHITE, 12, true);
-    }
-    // Pokedex progress
+    this.text(infoX, cardY + 54, "Badges: " + player.badges.length + "/8", player.badges.length >= 8 ? COL_YELLOW : COL_LGRAY, 11);
+    this.text(infoX + 130, cardY + 54, "$" + player.money, COL_YELLOW, 11);
+    this.text(infoX, cardY + 68, "Time: " + hrs + "h " + (mins % 60) + "m", COL_LGRAY, 10);
+
     const total = typeof CREATURES !== "undefined" ? Object.keys(CREATURES).length : 100;
     const caught = typeof pokedex !== "undefined" ? Object.values(pokedex).filter(v => v.caught).length : 0;
     const seen = typeof pokedex !== "undefined" ? Object.values(pokedex).filter(v => v.seen).length : 0;
-    this.text(240, 320, "Pokedex: " + seen + " seen / " + caught + " caught / " + total + " total", COL_GRAY, 11, true);
-    this.text(240, 440, "Scroll=Navigate  Click=Select  Right-click=Back", COL_GRAY, 10, true);
+    this.text(infoX, cardY + 82, "Pokedex: " + seen + "/" + caught + "/" + total, COL_LGRAY, 10);
+
+    const badgeNames = ["Gra","Stl","Msh","Fst","Elc","Lav","Inf","Wnd"];
+    for (let i = 0; i < 8; i++) {
+      const bxx = infoX + 130 + (i % 4) * 42, byy = cardY + 66 + Math.floor(i / 4) * 16;
+      const has = i < player.badges.length;
+      this.rect(bxx, byy, 36, 13, has ? [200, 170, 50] : [35, 45, 65]);
+      this.text(bxx + 18, byy + 10, badgeNames[i], has ? COL_BLACK : [80, 90, 110], 7, true);
+    }
+
+    const opts = ["Party","Bag","Pokedex","Save","Load","Map","Close"];
+    const menuStartY = by + 132;
+    const optH = 44;
+
+    for (let i = 0; i < opts.length; i++) {
+      const oy = menuStartY + i * optH;
+      const sel = i === cursor;
+
+      if (sel) {
+        const selGrad = ctx.createLinearGradient(bx + 10, oy, bx + bw - 10, oy);
+        selGrad.addColorStop(0, rgba([200, 180, 40], 0.15));
+        selGrad.addColorStop(0.5, rgba([200, 180, 40], 0.3));
+        selGrad.addColorStop(1, rgba([200, 180, 40], 0.15));
+        ctx.fillStyle = selGrad;
+        ctx.fillRect(bx + 10, oy + 2, bw - 20, optH - 6);
+        ctx.strokeStyle = rgb(COL_YELLOW); ctx.lineWidth = 2;
+        ctx.strokeRect(bx + 10, oy + 2, bw - 20, optH - 6);
+      }
+
+      const pokeX = bx + 30, pokeY = oy + 18;
+      ctx.fillStyle = rgb(sel ? COL_YELLOW : COL_LGRAY);
+      ctx.beginPath(); ctx.arc(pokeX, pokeY, 5, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = rgb(sel ? COL_WHITE : COL_GRAY); ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.arc(pokeX, pokeY, 5, 0, Math.PI * 2); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(pokeX - 5, pokeY); ctx.lineTo(pokeX + 5, pokeY); ctx.stroke();
+      ctx.fillStyle = rgb(sel ? COL_WHITE : COL_GRAY);
+      ctx.beginPath(); ctx.arc(pokeX, pokeY, 2, 0, Math.PI * 2); ctx.fill();
+
+      this.text(bx + 46, oy + 22, opts[i], sel ? COL_YELLOW : COL_WHITE, 14);
+
+      if (sel) this.menuCursor(bx + 14, oy + 12, t);
+    }
+
+    this.text(bx + bw / 2, by + bh - 10, "Scroll=Navigate  Click=Select  Right-click=Back", COL_GRAY, 9, true);
+    ctx.globalAlpha = 1;
   }
 
-  // ===== BAG CATEGORY MENU - Tab-Based =====
+  // ===== BAG CATEGORY MENU - Pokemon Bag Style =====
   bagCatMenu(inventory, bagTab, cursor, t) {
     const ctx = this.ctx;
-    ctx.globalAlpha = 0.6; ctx.fillStyle = rgb(COL_BLACK); ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
-    ctx.globalAlpha = 1;
-    this.box(20, 20, 440, 440);
-    this.text(240, 38, "BAG", COL_YELLOW, 16, true);
+    const fadeIn = Math.min(1, t * 4);
+
+    ctx.globalAlpha = 0.7 * fadeIn;
+    ctx.fillStyle = rgb(COL_BLACK);
+    ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
+    ctx.globalAlpha = fadeIn;
+
+    const bx = 15, by = 10, bw = 450, bh = 460;
+    const bagGrad = ctx.createLinearGradient(bx, by, bx, by + bh);
+    bagGrad.addColorStop(0, rgb([20, 45, 95]));
+    bagGrad.addColorStop(0.5, rgb([15, 35, 75]));
+    bagGrad.addColorStop(1, rgb([10, 25, 55]));
+    ctx.fillStyle = bagGrad;
+    ctx.fillRect(bx, by, bw, bh);
+    ctx.strokeStyle = rgb(COL_WHITE); ctx.lineWidth = 3;
+    ctx.strokeRect(bx - 2, by - 2, bw + 4, bh + 4);
+    ctx.strokeStyle = rgb([120, 150, 200]); ctx.lineWidth = 2;
+    ctx.strokeRect(bx, by, bw, bh);
+
+    this.text(bx + bw / 2, by + 20, "BAG", COL_YELLOW, 16, true);
+
     const BAG_TABS = [
-      { name: "Medicine", items: ["Potion","Super Potion","Hyper Potion","Full Heal","Revive","Full Revive"] },
-      { name: "Spheres", items: ["Soul Sphere","Great Sphere","Ultra Sphere","Master Sphere"] },
-      { name: "TMs", items: Object.keys(TM_MOVES || {}) },
-      { name: "Battle", items: ["X Attack","X Defense"] }
+      { name: "Medicine", icon: "+", items: ["Potion","Super Potion","Hyper Potion","Full Heal","Revive","Full Revive"] },
+      { name: "Spheres", icon: "O", items: ["Soul Sphere","Great Sphere","Ultra Sphere","Master Sphere"] },
+      { name: "TMs", icon: "T", items: Object.keys(TM_MOVES || {}) },
+      { name: "Battle", icon: "!", items: ["X Attack","X Defense"] }
     ];
     const isOnTab = cursor < BAG_TABS.length;
     const itemCursor = Math.max(0, cursor - BAG_TABS.length);
     const tabW = 100;
-    const tabStartX = 30;
+    const tabStartX = bx + 10;
+
     for (let i = 0; i < BAG_TABS.length; i++) {
       const tx = tabStartX + i * (tabW + 5);
       const isActive = i === bagTab;
-      const isSel = i === cursor;
-      this.rect(tx, 50, tabW, 22, isSel ? [80, 80, 110] : (isActive ? [60, 60, 90] : [30, 30, 50]));
-      this.ctx.strokeStyle = rgb(isSel ? COL_YELLOW : (isActive ? COL_LGRAY : [80, 80, 100]));
-      this.ctx.lineWidth = (isSel || isActive) ? 2 : 1;
-      this.ctx.strokeRect(tx, 50, tabW, 22);
-      this.text(tx + tabW / 2, 65, BAG_TABS[i].name, isSel ? COL_YELLOW : (isActive ? COL_WHITE : COL_LGRAY), 10, true);
-      if (isSel && isOnTab) this.menuCursor(tx + 2, 55, t);
+      const isSel = i === cursor && isOnTab;
+
+      if (isActive && !isSel) {
+        ctx.fillStyle = rgb([35, 60, 110]);
+        ctx.fillRect(tx, by + 34, tabW, 28);
+        ctx.strokeStyle = rgb([100, 140, 200]); ctx.lineWidth = 2;
+        ctx.strokeRect(tx, by + 34, tabW, 28);
+      } else if (isSel) {
+        ctx.fillStyle = rgb([50, 80, 140]);
+        ctx.fillRect(tx, by + 32, tabW, 30);
+        ctx.strokeStyle = rgb(COL_YELLOW); ctx.lineWidth = 2;
+        ctx.strokeRect(tx, by + 32, tabW, 30);
+      } else {
+        ctx.fillStyle = rgb([20, 30, 55]);
+        ctx.fillRect(tx, by + 36, tabW, 24);
+        ctx.strokeStyle = rgb([60, 80, 120]); ctx.lineWidth = 1;
+        ctx.strokeRect(tx, by + 36, tabW, 24);
+      }
+
+      this.text(tx + tabW / 2, by + (isSel ? 52 : 53), BAG_TABS[i].name,
+        isSel ? COL_YELLOW : (isActive ? COL_WHITE : COL_LGRAY), 10, true);
+
+      if (isSel) this.menuCursor(tx + 2, by + 40, t);
     }
+
     const activeTabX = tabStartX + bagTab * (tabW + 5);
-    this.rect(activeTabX, 72, tabW, 2, COL_YELLOW);
+    ctx.fillStyle = rgb(COL_YELLOW);
+    ctx.fillRect(activeTabX, by + 64, tabW, 3);
+
     const items = BAG_TABS[bagTab].items.filter(name => (inventory[name] || 0) > 0);
-    const listY = 80;
-    this.box(30, listY, 420, 340, COL_WHITE, [20, 20, 35]);
+    const listY = by + 74;
+    const listH = 330;
+
+    ctx.strokeStyle = rgb([80, 110, 160]); ctx.lineWidth = 1;
+    ctx.strokeRect(bx + 8, listY, bw - 16, listH);
+
     if (!items.length) {
-      this.text(240, 240, "No items in this category", COL_GRAY, 12, true);
+      this.text(bx + bw / 2, listY + listH / 2, "- No items in this category -", COL_GRAY, 12, true);
     } else {
       const maxShow = 9;
       const offset = Math.max(0, itemCursor - maxShow + 1);
       for (let i = offset; i < Math.min(items.length, offset + maxShow); i++) {
         const name = items[i];
         const count = inventory[name] || 0;
-        const y = listY + 10 + (i - offset) * 34;
+        const y = listY + 8 + (i - offset) * 34;
         const sel = i === itemCursor && !isOnTab;
-        if (sel) this.rect(36, y, 408, 30, COL_SELECT, 0.3);
-        let itemCol = COL_LGRAY;
-        if (bagTab === 0) itemCol = COL_GREEN;
-        else if (bagTab === 1) itemCol = [100, 180, 255];
-        else if (bagTab === 2) itemCol = COL_YELLOW;
-        else if (bagTab === 3) itemCol = COL_RED;
-        this.rect(36, y + 2, 4, 26, itemCol);
-        this.text(48, y + 14, name, sel ? COL_WHITE : COL_LGRAY, 13);
-        this.text(400, y + 14, "x" + count, sel ? COL_YELLOW : COL_GRAY, 12, true);
-        if (sel) this.menuCursor(38, y + 8, t);
+
         if (sel) {
-          const desc = this.getItemDesc(name);
-          this.text(48, y + 28, desc, COL_GRAY, 9);
+          ctx.strokeStyle = rgb(COL_YELLOW); ctx.lineWidth = 2;
+          ctx.strokeRect(bx + 14, y, bw - 28, 30);
         }
+
+        const tabIcons = ["+", "O", "T", "!"];
+        const tabCols = [[80,200,80], [100,180,255], COL_YELLOW, COL_RED];
+        const iconCol = tabCols[bagTab] || COL_LGRAY;
+
+        ctx.fillStyle = rgb(sel ? [60,80,120] : [25,40,70]);
+        ctx.fillRect(bx + 16, y + 2, bw - 32, 26);
+
+        this.rect(bx + 18, y + 4, 22, 22, iconCol);
+        this.text(bx + 29, y + 19, tabIcons[bagTab] || "?", COL_WHITE, 10, true);
+
+        this.text(bx + 48, y + 18, name, sel ? COL_WHITE : COL_LGRAY, 13);
+
+        this.text(bx + bw - 30, y + 18, "x" + count, sel ? COL_YELLOW : COL_GRAY, 12, true);
+
+        if (sel) this.menuCursor(bx + 14, y + 8, t);
       }
       if (items.length > maxShow) {
-        this.text(240, listY + 330, "(" + (itemCursor + 1) + "/" + items.length + ")", COL_GRAY, 10, true);
+        this.text(bx + bw / 2, listY + listH - 8, "(" + (itemCursor + 1) + "/" + items.length + ")", COL_GRAY, 10, true);
       }
     }
-    this.text(240, 450, "Scroll=Navigate  Click=Select  Right-click=Back", COL_GRAY, 10, true);
+
+    if (isOnTab && cursor < BAG_TABS.length) {
+      const descY = by + bh - 50;
+      this.text(bx + bw / 2, descY, BAG_TABS[cursor].name + " Items", COL_LGRAY, 11, true);
+    } else if (!isOnTab && itemCursor >= 0 && itemCursor < items.length) {
+      const selItemName = items[itemCursor];
+      const descY = by + bh - 50;
+      const desc = this.getItemDesc(selItemName);
+      if (desc) this.text(bx + bw / 2, descY, desc, COL_LGRAY, 10, true);
+    }
+
+    this.text(bx + bw / 2, by + bh - 12, "Scroll=Navigate  Click=Select  Right-click=Back", COL_GRAY, 9, true);
+    ctx.globalAlpha = 1;
   }
 
   getItemDesc(name) {
@@ -931,95 +1376,188 @@ class Renderer {
     this.text(240, 430, "Scroll=Select  Click=Use  Right-click=Cancel", COL_GRAY, 10, true);
   }
 
-  // ===== PARTY DETAIL - Full Summary =====
+  // ===== PARTY DETAIL - Pokemon Full Summary Screen =====
   partyDetailMenu(party, cursor, t, mode) {
     const ctx = this.ctx;
-    ctx.globalAlpha = 0.6; ctx.fillStyle = rgb(COL_BLACK); ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
+    ctx.globalAlpha = 0.7;
+    ctx.fillStyle = rgb(COL_BLACK);
+    ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
     ctx.globalAlpha = 1;
-    this.box(10, 10, 460, 460);
-    // Left side: party list
-    this.box(16, 16, 120, 448, COL_WHITE, [25, 25, 40]);
-    this.text(76, 32, "PARTY", COL_YELLOW, 10, true);
+
+    const bx = 8, by = 8, bw = 464, bh = 464;
+    const detGrad = ctx.createLinearGradient(bx, by, bx, by + bh);
+    detGrad.addColorStop(0, rgb([20, 45, 95]));
+    detGrad.addColorStop(0.5, rgb([15, 35, 75]));
+    detGrad.addColorStop(1, rgb([10, 25, 55]));
+    ctx.fillStyle = detGrad;
+    ctx.fillRect(bx, by, bw, bh);
+    ctx.strokeStyle = rgb(COL_WHITE); ctx.lineWidth = 3;
+    ctx.strokeRect(bx - 2, by - 2, bw + 4, bh + 4);
+    ctx.strokeStyle = rgb([120, 150, 200]); ctx.lineWidth = 2;
+    ctx.strokeRect(bx, by, bw, bh);
+
+    const listX = bx + 4, listY = by + 4, listW = 124, listH = bh - 8;
+    ctx.fillStyle = rgb([18, 28, 50]);
+    ctx.fillRect(listX, listY, listW, listH);
+    ctx.strokeStyle = rgb([80, 110, 160]); ctx.lineWidth = 1;
+    ctx.strokeRect(listX, listY, listW, listH);
+
+    this.text(listX + listW / 2, listY + 14, "PARTY", COL_YELLOW, 10, true);
+
     for (let i = 0; i < party.length; i++) {
       const c = party[i];
-      const y = 40 + i * 70;
+      const cy = listY + 22 + i * 72;
       const sel = i === cursor;
-      if (sel) this.rect(18, y, 116, 64, COL_SELECT, 0.3);
-      this.box(18, y, 116, 64, sel ? COL_YELLOW : COL_LGRAY, sel ? [40, 40, 60] : [30, 30, 45]);
-      this.creatureSprite(28, y + 6, 36, c.dex);
-      this.text(70, y + 18, c.name, sel ? COL_WHITE : COL_LGRAY, 9);
-      this.text(70, y + 30, "Lv." + c.level, COL_GRAY, 9);
-      this.hpBar(28, y + 46, 98, 5, c.hp / Math.max(1, c.maxHP));
+
+      if (sel) {
+        ctx.fillStyle = rgb([40, 60, 100]);
+        ctx.fillRect(listX + 2, cy, listW - 4, 66);
+        ctx.strokeStyle = rgb(COL_YELLOW); ctx.lineWidth = 2;
+        ctx.strokeRect(listX + 2, cy, listW - 4, 66);
+      } else {
+        ctx.strokeStyle = rgb([60, 80, 120]); ctx.lineWidth = 1;
+        ctx.strokeRect(listX + 2, cy, listW - 4, 66);
+      }
+
+      this.creatureSprite(listX + 6, cy + 4, 34, c.dex);
+      this.text(listX + 44, cy + 14, c.name, sel ? COL_WHITE : COL_LGRAY, 9);
+      this.text(listX + 44, cy + 26, "Lv." + c.level, COL_GRAY, 8);
+      this.hpBar(listX + 6, cy + 44, listW - 12, 5, c.hp / Math.max(1, c.maxHP));
       if (c.status) {
         const sCol = {burn:[255,120,20],poison:[180,60,200],paralyze:[255,240,60],freeze:[150,220,255],sleep:[160,160,200]}[c.status]||COL_RED;
-        this.rect(28, y + 54, 12, 6, sCol);
+        ctx.fillStyle = rgb(sCol);
+        ctx.fillRect(listX + 6, cy + 52, 10, 5);
+      }
+      if (c.hp <= 0) {
+        this.text(listX + 20, cy + 58, "FNT", COL_RED, 7, true);
       }
     }
-    // Right side: detail
+
     if (cursor < party.length) {
       const c = party[cursor];
-      const rx = 145, ry = 16, rw = 318, rh = 448;
-      this.box(rx, ry, rw, rh, COL_WHITE, [20, 20, 35]);
-      // Header
-      this.creatureSprite(rx + 10, ry + 8, 60, c.dex);
-      this.text(rx + 80, ry + 20, c.name, COL_WHITE, 15);
-      this.text(rx + 80, ry + 38, "#" + String(c.dex).padStart(3,"0") + "  " + c.types.join("/"), TYPE_COLORS[c.types[0]] || COL_GRAY, 11);
-      this.text(rx + 80, ry + 52, "Lv." + c.level + "  BST:" + c.stats.reduce((a,b)=>a+b,0), COL_LGRAY, 10);
-      // HP bar
-      this.text(rx + 10, ry + 80, "HP", COL_LGRAY, 10);
-      this.hpBar(rx + 35, ry + 74, 180, 10, c.hp / Math.max(1, c.maxHP));
-      this.text(rx + 220, ry + 82, c.hp + "/" + c.maxHP, COL_WHITE, 11);
-      // Stats
-      const statNames = ["ATK","DEF","SPD","SATK","SDEF"];
-      const statCols = [COL_RED, COL_BLUE, COL_GREEN, [255,160,60], [180,100,220]];
-      for (let i = 0; i < 5; i++) {
-        const sy = ry + 100 + i * 16;
-        this.text(rx + 10, sy + 10, statNames[i], statCols[i], 10);
-        this.text(rx + 50, sy + 10, "" + c.stats[i + 1], COL_WHITE, 10);
-        const statRatio = Math.min(1, c.stats[i + 1] / 200);
-        this.rect(rx + 85, sy + 4, 80, 8, [40, 40, 50]);
-        this.rect(rx + 85, sy + 4, Math.floor(80 * statRatio), 8, statCols[i]);
+      const rx = bx + 134, ry = by + 4, rw = bw - 138, rh = bh - 8;
+      ctx.fillStyle = rgb([16, 32, 65]);
+      ctx.fillRect(rx, ry, rw, rh);
+      ctx.strokeStyle = rgb([100, 130, 180]); ctx.lineWidth = 1;
+      ctx.strokeRect(rx, ry, rw, rh);
+
+      this.creatureSprite(rx + 8, ry + 8, 56, c.dex);
+      this.text(rx + 72, ry + 18, c.name, COL_WHITE, 15);
+      this.text(rx + 72, ry + 36, "#" + String(c.dex).padStart(3,"0"), COL_LGRAY, 10);
+
+      const tc = TYPE_COLORS[c.types[0]] || COL_GRAY;
+      this.rect(rx + 72, ry + 42, 42, 13, tc);
+      this.text(rx + 93, ry + 52, c.types[0], COL_WHITE, 8, true);
+      if (c.types.length > 1) {
+        const tc2 = TYPE_COLORS[c.types[1]] || COL_GRAY;
+        this.rect(rx + 118, ry + 42, 42, 13, tc2);
+        this.text(rx + 139, ry + 52, c.types[1], COL_WHITE, 8, true);
       }
-      // Status
+
+      this.text(rx + 72, ry + 64, "Lv." + c.level, COL_LGRAY, 10);
+
+      this.text(rx + 8, ry + 78, "HP", COL_LGRAY, 9);
+      const hpBarX = rx + 30, hpBarW = 170;
+      this.rect(hpBarX, ry + 72, hpBarW, 10, [40, 40, 55]);
+      const hpRatio = c.hp / Math.max(1, c.maxHP);
+      const hpCol = hpRatio > 0.5 ? COL_HPG : hpRatio > 0.2 ? COL_HPY : COL_HPR;
+      const hpFill = Math.floor(hpBarW * Math.max(0, Math.min(1, hpRatio)));
+      if (hpFill > 0) this.rect(hpBarX, ry + 72, hpFill, 10, hpCol);
+      this.text(hpBarX + hpBarW + 6, ry + 80, c.hp + "/" + c.maxHP, COL_WHITE, 10);
+
       if (c.status) {
         const sTxt = {burn:"Burn",poison:"Poison",paralyze:"Paralyze",freeze:"Freeze",sleep:"Sleep"}[c.status]||c.status;
         const sCol = {burn:[255,120,20],poison:[180,60,200],paralyze:[255,240,60],freeze:[150,220,255],sleep:[160,160,200]}[c.status]||COL_RED;
-        this.text(rx + 175, ry + 82, sTxt, sCol, 10);
+        this.text(hpBarX, ry + 90, sTxt, sCol, 10);
       }
-      // Moves section
-      this.text(rx + 10, ry + 192, "MOVES", COL_YELLOW, 11);
+
+      const statNames = ["ATK","DEF","SPD","SATK","SDEF"];
+      const statCols = [COL_RED, COL_BLUE, COL_GREEN, [255,160,60], [180,100,220]];
+      for (let i = 0; i < 5; i++) {
+        const sy = ry + 100 + i * 18;
+        this.text(rx + 8, sy + 12, statNames[i], statCols[i], 10);
+        this.text(rx + 42, sy + 12, "" + c.stats[i + 1], COL_WHITE, 10);
+        const statRatio = Math.min(1, c.stats[i + 1] / 200);
+        const barW = 100;
+        this.rect(rx + 72, sy + 4, barW, 10, [35, 40, 55]);
+        this.rect(rx + 72, sy + 4, Math.floor(barW * statRatio), 10, statCols[i]);
+        this.ctx.strokeStyle = rgb([60, 70, 90]); this.ctx.lineWidth = 1;
+        this.ctx.strokeRect(rx + 72, sy + 4, barW, 10);
+      }
+
+      this.text(rx + 8, ry + 196, "MOVES", COL_YELLOW, 11);
       for (let i = 0; i < c.moves.length; i++) {
         const mv = c.moves[i]; const md = MOVES[mv.id];
         if (!md) continue;
-        const my = ry + 206 + i * 34;
-        this.rect(rx + 8, my, 302, 30, [35, 35, 50]);
+        const my = ry + 210 + i * 36;
         const tc = TYPE_COLORS[md.type] || COL_GRAY;
-        this.rect(rx + 10, my + 2, 4, 26, tc);
-        this.text(rx + 20, my + 13, md.name, COL_WHITE, 11);
-        this.text(rx + 20, my + 26, md.type + " " + (md.category === 0 ? "Phys" : md.category === 1 ? "Spec" : "Status"), COL_GRAY, 9);
-        this.text(rx + 170, my + 13, "PP:" + mv.pp + "/" + mv.maxPP, COL_LGRAY, 9);
-        if (md.power > 0) this.text(rx + 240, my + 13, "Pow:" + md.power, COL_LGRAY, 9);
-        this.text(rx + 170, my + 26, "Acc:" + md.accuracy + "%", COL_LGRAY, 9);
+        ctx.fillStyle = rgb([25, 35, 60]);
+        ctx.fillRect(rx + 6, my, rw - 12, 32);
+        ctx.fillStyle = rgb(tc);
+        ctx.fillRect(rx + 6, my, 6, 32);
+        this.text(rx + 18, my + 14, md.name, COL_WHITE, 11);
+        this.text(rx + 18, my + 26, md.type, tc, 8);
+        this.text(rx + 100, my + 14, "PP:" + mv.pp + "/" + mv.maxPP, COL_LGRAY, 9);
+        if (md.power > 0) this.text(rx + 180, my + 14, "Pow:" + md.power, COL_LGRAY, 9);
+        this.text(rx + 100, my + 26, "Acc:" + md.accuracy + "%", COL_LGRAY, 9);
+        const catName = md.category === 0 ? "Phys" : md.category === 1 ? "Spec" : "Status";
+        const catCol = md.category === 0 ? COL_RED : md.category === 1 ? COL_BLUE : COL_LGRAY;
+        this.text(rx + 180, my + 26, catName, catCol, 9);
       }
-      // Action buttons
+
       const btns = mode === "swap" ? ["Swap Here","Cancel"] : ["Swap","Summary","Back"];
       for (let i = 0; i < btns.length; i++) {
-        const bx = rx + 10 + i * 100, by = ry + 355;
-        this.rect(bx, by, 92, 22, [40, 40, 60]);
-        this.ctx.strokeStyle = rgb(COL_LGRAY); this.ctx.lineWidth = 1;
-        this.ctx.strokeRect(bx, by, 92, 22);
-        this.text(bx + 46, by + 14, btns[i], COL_WHITE, 10, true);
+        const btnX = rx + 8 + i * 100, btnY = ry + rh - 30;
+        const isBtnSel = cursor >= 0 && i === (mode === "swap" ? 0 : 2);
+        ctx.fillStyle = rgb(isBtnSel ? [60, 80, 120] : [35, 45, 70]);
+        ctx.fillRect(btnX, btnY, 92, 24);
+        ctx.strokeStyle = rgb(isBtnSel ? COL_YELLOW : COL_LGRAY); ctx.lineWidth = isBtnSel ? 2 : 1;
+        ctx.strokeRect(btnX, btnY, 92, 24);
+        this.text(btnX + 46, btnY + 15, btns[i], isBtnSel ? COL_YELLOW : COL_WHITE, 10, true);
       }
     }
   }
 
-  // World Map Screen
+  // World Map Screen - Pokemon Town Map Style
   worldMapScreen(player, currentMapName, cursor, t) {
     const ctx = this.ctx;
-    ctx.globalAlpha = 0.6; ctx.fillStyle = rgb(COL_BLACK); ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
+    ctx.globalAlpha = 0.7;
+    ctx.fillStyle = rgb(COL_BLACK);
+    ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
     ctx.globalAlpha = 1;
-    this.box(20, 20, 440, 440);
-    this.text(240, 38, "WORLD MAP", COL_YELLOW, 16, true);
+
+    const bx = 15, by = 15, bw = 450, bh = 450;
+
+    for (let y = by; y < by + bh; y++) {
+      const ratio = (y - by) / bh;
+      const r = Math.floor(195 + 30 * ratio);
+      const g = Math.floor(175 + 20 * ratio);
+      const b = Math.floor(130 - 10 * ratio);
+      ctx.fillStyle = `rgb(${r},${g},${b})`;
+      ctx.fillRect(bx, y, bw, 1);
+    }
+
+    ctx.strokeStyle = rgb([120, 90, 50]); ctx.lineWidth = 3;
+    ctx.strokeRect(bx - 2, by - 2, bw + 4, bh + 4);
+    ctx.strokeStyle = rgb([160, 130, 80]); ctx.lineWidth = 2;
+    ctx.strokeRect(bx, by, bw, bh);
+
+    for (let i = 0; i < 20; i++) {
+      const sx = bx + (i * 137 + 50) % bw;
+      const sy = by + (i * 97 + 30) % bh;
+      ctx.fillStyle = rgba([100, 80, 50], 0.1 + Math.sin(t + i) * 0.05);
+      ctx.fillRect(sx, sy, 2, 2);
+    }
+
+    const titleGrad = ctx.createLinearGradient(bx, by, bx, by + 30);
+    titleGrad.addColorStop(0, rgb([200, 180, 40]));
+    titleGrad.addColorStop(1, rgb([180, 150, 20]));
+    ctx.fillStyle = titleGrad;
+    ctx.fillRect(bx + 8, by + 4, bw - 16, 28);
+    ctx.strokeStyle = rgb([240, 220, 80]); ctx.lineWidth = 1;
+    ctx.strokeRect(bx + 8, by + 4, bw - 16, 28);
+    this.text(bx + bw / 2, by + 22, "WORLD MAP", COL_BLACK, 14, true);
+
     const locations = [
       { name: "Starter Town", x: 240, y: 400, desc: "Your hometown" },
       { name: "Route 1", x: 240, y: 350, desc: "A peaceful path" },
@@ -1037,44 +1575,68 @@ class Renderer {
     const connections = [
       [0,1],[1,2],[2,3],[3,4],[3,5],[3,6],[5,7],[7,8],[8,9],[8,10],[4,11]
     ];
-    ctx.strokeStyle = rgb([80, 80, 100]); ctx.lineWidth = 2;
+
+    ctx.strokeStyle = rgb([100, 80, 50]); ctx.lineWidth = 3;
     for (const [a, b] of connections) {
       ctx.beginPath();
       ctx.moveTo(locations[a].x, locations[a].y);
       ctx.lineTo(locations[b].x, locations[b].y);
       ctx.stroke();
     }
+    ctx.strokeStyle = rgb([180, 160, 110]); ctx.lineWidth = 1;
+    for (const [a, b] of connections) {
+      ctx.beginPath();
+      ctx.moveTo(locations[a].x, locations[a].y);
+      ctx.lineTo(locations[b].x, locations[b].y);
+      ctx.stroke();
+    }
+
     let curIdx = locations.findIndex(l => l.name === currentMapName);
     for (let i = 0; i < locations.length; i++) {
       const loc = locations[i];
       const isCurrent = i === curIdx;
       const isCursor = i === cursor;
-      const nodeR = isCurrent ? 10 : 7;
+
       if (isCurrent) {
-        const pulse = 0.3 + Math.sin(t * 4) * 0.15;
+        const pulse = 0.4 + Math.sin(t * 4) * 0.2;
         ctx.globalAlpha = pulse;
         ctx.fillStyle = rgb(COL_GREEN);
-        ctx.beginPath(); ctx.arc(loc.x, loc.y, nodeR + 6, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(loc.x, loc.y, 14, 0, Math.PI * 2); ctx.fill();
         ctx.globalAlpha = 1;
       }
-      ctx.fillStyle = rgb(isCurrent ? COL_GREEN : (isCursor ? COL_YELLOW : COL_LGRAY));
+
+      const nodeR = isCurrent ? 8 : 6;
+      const nodeCol = isCurrent ? COL_GREEN : (isCursor ? COL_YELLOW : [180, 160, 120]);
+      ctx.fillStyle = rgb(nodeCol);
       ctx.beginPath(); ctx.arc(loc.x, loc.y, nodeR, 0, Math.PI * 2); ctx.fill();
-      if (isCursor) {
+      ctx.strokeStyle = rgb(isCurrent ? [100, 255, 100] : (isCursor ? COL_YELLOW : [120, 100, 70]));
+      ctx.lineWidth = isCurrent ? 2 : 1;
+      ctx.beginPath(); ctx.arc(loc.x, loc.y, nodeR, 0, Math.PI * 2); ctx.stroke();
+
+      if (isCursor && !isCurrent) {
         ctx.strokeStyle = rgb(COL_YELLOW); ctx.lineWidth = 2;
-        ctx.beginPath(); ctx.arc(loc.x, loc.y, nodeR + 3, 0, Math.PI * 2); ctx.stroke();
+        ctx.beginPath(); ctx.arc(loc.x, loc.y, nodeR + 4, 0, Math.PI * 2); ctx.stroke();
       }
-      const labelCol = isCurrent ? COL_GREEN : (isCursor ? COL_YELLOW : COL_WHITE);
-      this.text(loc.x, loc.y + nodeR + 14, loc.name, labelCol, 9, true);
+
+      const labelCol = isCurrent ? [40, 80, 40] : (isCursor ? [160, 120, 20] : [80, 60, 40]);
+      this.text(loc.x, loc.y + nodeR + 12, loc.name, labelCol, 8, true);
+
       if (isCursor) {
-        this.text(loc.x, loc.y + nodeR + 26, loc.desc, COL_GRAY, 8, true);
+        this.text(loc.x, loc.y + nodeR + 22, loc.desc, [100, 80, 50], 8, true);
       }
     }
+
     if (curIdx >= 0) {
       const px = locations[curIdx].x, py = locations[curIdx].y;
       const bob = Math.sin(t * 4) * 2;
       ctx.fillStyle = rgb(COL_YELLOW);
-      ctx.beginPath(); ctx.moveTo(px, py - 14 + bob); ctx.lineTo(px - 4, py - 20 + bob); ctx.lineTo(px + 4, py - 20 + bob); ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(px, py - 16 + bob);
+      ctx.lineTo(px - 5, py - 22 + bob);
+      ctx.lineTo(px + 5, py - 22 + bob);
+      ctx.fill();
     }
-    this.text(240, 450, "Scroll=Navigate  Click/Right-click=Back", COL_GRAY, 10, true);
+
+    this.text(bx + bw / 2, by + bh - 10, "Scroll=Navigate  Click/Right-click=Back", COL_GRAY, 9, true);
   }
 }
