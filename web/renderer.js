@@ -358,37 +358,57 @@ class Renderer {
 
   startScreen(t) {
     const ctx = this.ctx;
+    // Gradient background
     for (let y = 0; y < SCREEN_H; y++) {
       const r = y / SCREEN_H;
       ctx.fillStyle = `rgb(${Math.floor(20 + 30 * r)},${Math.floor(20 + 40 * r)},${Math.floor(40 + 60 * r)})`;
       ctx.fillRect(0, y, SCREEN_W, 1);
     }
+    // Title with glow
     const bob = Math.sin(t * 2) * 5;
-    this.text(240, 100 + Math.floor(bob), "MINIMON", COL_YELLOW, 28, true);
-    this.text(240, 140, "A Mini-Collecting Adventure", COL_LGRAY, 14, true);
+    const titleGrad = ctx.createLinearGradient(0, 80, 0, 120);
+    titleGrad.addColorStop(0, '#FFD700');
+    titleGrad.addColorStop(0.5, '#FF8C00');
+    titleGrad.addColorStop(1, '#FFD700');
+    ctx.fillStyle = titleGrad;
+    ctx.font = "bold 32px monospace";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("MINIMON", 240, 100 + Math.floor(bob));
+    ctx.textBaseline = "alphabetic";
+    this.text(240, 130, "A Mini-Collecting RPG Adventure", COL_LGRAY, 14, true);
+
+    // Legendary showcase - 5 legendaries in a row, well-spaced
     const show = [86, 87, 88, 89, 90];
     for (let i = 0; i < show.length; i++) {
       const dex = show[i];
-      const sc = 50 + Math.sin(t * 2 + i) * 5;
-      drawLegendaryCreature(ctx, 48 + i * 90, 190 + Math.floor(Math.sin(t*2+i)*3), sc, dex, t);
+      const sc = 48 + Math.sin(t * 2 + i) * 4;
+      const sx = 48 + i * 96;
+      drawLegendaryCreature(ctx, sx, 170 + Math.floor(Math.sin(t*2+i)*3), sc, dex, t);
       const cr = CREATURES[dex];
-      if (cr) this.text(48 + i*90 + sc/2, 250, cr.name, COL_YELLOW, 10, true);
+      if (cr) this.text(sx + sc/2, 230, cr.name, COL_YELLOW, 9, true);
     }
-    this.text(240, 330, "Scroll/Click to Start", COL_WHITE, 14, true);
+
+    // Start prompt
+    this.text(240, 280, "Scroll/Click to Start", COL_WHITE, 16, true);
     const hasSave = tryHasSave();
-    if (hasSave) this.text(240, 350, "Right-click = Continue", COL_GREEN, 12, true);
-    this.text(240, 370, "Rabbit R1 Edition", COL_GRAY, 11, true);
-    this.text(240, 390, "Created by MrGhostGuy (Jeff Hollaway)", COL_GRAY, 10, true);
+    if (hasSave) this.text(240, 300, "Right-click = Continue", COL_GREEN, 12, true);
+
+    // Footer
+    this.text(240, 380, "Rabbit R1 Edition", COL_GRAY, 11, true);
+    this.text(240, 395, "Created by MrGhostGuy (Jeff Hollaway)", COL_GRAY, 10, true);
     this.text(240, 410, "Scroll = Navigate | Click = Select", COL_GRAY, 11, true);
-    // Creature showcase - more variety
+
+    // Creature showcase at bottom - 8 creatures, 4 per row
     const showcase = [1, 4, 11, 13, 39, 57, 71, 86];
     for (let i = 0; i < showcase.length; i++) {
       const dex = showcase[i];
       const cr = CREATURES[dex];
       if (!cr) continue;
-      const sx = 30 + (i % 4) * 115;
-      const sy = 425 + Math.floor(i / 4) * 25;
-      this.creatureSprite(sx, sy - 10, 20, dex);
+      const sx = 50 + (i % 4) * 100;
+      const sy = 435 + Math.floor(i / 4) * 30;
+      this.creatureSprite(sx, sy, 18, dex);
+      this.text(sx + 9, sy + 22, cr.name, COL_GRAY, 7, true);
     }
   }
 

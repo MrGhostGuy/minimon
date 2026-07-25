@@ -38,7 +38,7 @@ const SPHERE_NORMAL=1,SPHERE_GREAT=1.5,SPHERE_ULTRA=2,SPHERE_MASTER=255;
 // Items
 const I_POTION="Potion",I_SPOTION="Super Potion",I_HPOTION="Hyper Potion",I_FHEAL="Full Heal",
 I_SPHERE="Soul Sphere",I_GSPHERE="Great Sphere",I_USPHERE="Ultra Sphere",I_MSPHERE="Master Sphere",
-I_XATK="X Attack",I_XDEF="X Defense",I_REVIVE="Revive",I_FREVIVE="Full Revive",I_ROPE="Escape Rope",
+ I_XATK="X Attack",I_XDEF="X Defense",I_REVIVE="Revive",I_FREVIVE="Full Revive",I_ROPE="Escape Rope",I_REPEL="Repel",
 I_TM_EMBER="TM Ember",I_TM_WGUN="TM Water Gun",I_TM_VWHIP="TM Vine Whip",
 I_TM_TSHOCK="TM Thundershock",I_TM_ISHARD="TM Ice Shard",I_TM_BITE="TM Bite",
 I_TM_SBALL="TM Shadow Ball",I_TM_DCLAW="TM Dragon Claw",I_TMSEDGE="TM Stone Edge",
@@ -71,7 +71,7 @@ const ALL_TM=Object.keys(TM_MOVES);
 const PRICES={};
 PRICES[I_POTION]=300;PRICES[I_SPOTION]=700;PRICES[I_HPOTION]=1200;PRICES[I_FHEAL]=600;
 PRICES[I_SPHERE]=200;PRICES[I_GSPHERE]=600;PRICES[I_USPHERE]=1200;PRICES[I_MSPHERE]=10000;
-PRICES[I_XATK]=500;PRICES[I_XDEF]=500;PRICES[I_REVIVE]=1500;PRICES[I_FREVIVE]=3000;PRICES[I_ROPE]=200;
+PRICES[I_XATK]=500;PRICES[I_XDEF]=500;PRICES[I_REVIVE]=1500;PRICES[I_FREVIVE]=3000;PRICES[I_ROPE]=200;PRICES[I_REPEL]=100;
 for(let t of ALL_TM)PRICES[t]=t.includes("Shadow")||t.includes("Dragon")||t.includes("Flamethrow")||t.includes("Hydro")||t.includes("Solar")||t.includes("Thunderbo")||t.includes("Blizzard")||t.includes("Earthquake")||t.includes("Recover")?5000:3000+1000;
 
 const AI_WILD=0,AI_ROOKIE=1,AI_TRAINER=2,AI_GYM=3,AI_ELITE=4,AI_CHAMPION=5;
