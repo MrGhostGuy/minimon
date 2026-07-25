@@ -1,8 +1,7 @@
-// Minimon - Main Game Loop (HTML5/Canvas, R1-optimized)
+// Minimon - Main Game Loop (Enhanced with Battle Effects & QOL)
 (function() {
 "use strict";
 
-// Canvas setup
 const canvas = document.getElementById("gc");
 const ctx = canvas.getContext("2d");
 canvas.width = SCREEN_W; canvas.height = SCREEN_H;
@@ -15,11 +14,12 @@ window.addEventListener("resize", resize); resize();
 
 const R = new Renderer(ctx, SCREEN_W, SCREEN_H);
 
-// Game state
-const S_TITLE="title", S_INTRO="intro", S_OW="overworld", S_BATTLE="battle", S_MENU="menu",
-S_PARTY="party", S_BAG="bag", S_MOVES="moves", S_DIALOG="dialog", S_EVOLUTION="evolution",
+const S_TITLE="title", S_INTRO="intro", S_OW="overworld", S_BATTLE="battle",
+S_PARTY="party", S_MOVES="moves", S_DIALOG="dialog", S_EVOLUTION="evolution",
 S_SHOP="shop", S_GAMEOVER="gameover", S_VICTORY="victory", S_STARTER="choose_starter",
-S_TM="tm_select";
+S_TM="tm_select", S_NAME="name_input", S_ENCOUNTER="encounter",
+S_PAUSE="pause", S_BAG_CAT="bag_cat", S_PARTY_DETAIL="party_detail",
+S_MAP="map_screen";
 
 const FACING = ["down","left","up","right"];
 const FACING_CYCLE = {down:"left",left:"up",up:"right",right:"down"};
@@ -29,20 +29,94 @@ let state = S_TITLE, time = 0, cursor = 0, running = true;
 let currentMap = null, dialogQueue = [], dialogCurrent = "", dialogSpeaker = "";
 let pendingEvolution = null, pendingStarter = null, pendingTrainer = null, pendingGym = null;
 let pendingHealer = false, pendingTrade = null, pendingMoveLearn = null, pendingTM = null;
+let pendingNameInput = false;
 let battleState = null, battlePhase = "select";
 let shopCursor = 0;
+let nameInput = "", nameCursor = 0;
+let encounterTimer = 0, encounterData = null, encounterType = "wild";
+const NAME_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
+let pokedex = {};
+let isSprinting = false;
+let stepTimer = 0;
+const STEP_DELAY_NORMAL = 0.15;
+const STEP_DELAY_SPRINT = 0.08;
+// Pause menu state
+let bagTab = 0;
+let partyDetailIdx = 0;
+let partyMode = "select"; // "select" or "swap"
+let pendingUseItem = null; // item being used from overworld bag
+let pauseReturnState = S_OW;
+let repelUsedInStarter = false; // Easter egg flag
+let starterLegendaryOptions = [75, 76, 77]; // Default legendary starters
+let bagReturnState = S_OW; // Track where to return from bag
+function pokedexSee(dex) { if (!pokedex[dex]) pokedex[dex] = { seen: true, caught: false }; else pokedex[dex].seen = true; }
+function pokedexCatch(dex) { pokedexSee(dex); if (pokedex[dex]) pokedex[dex].caught = true; }
+
+// Auto-save timer
+let autoSaveTimer = 0;
+const AUTO_SAVE_INTERVAL = 180; // 3 minutes
+
+function saveGame() {
+  let mapIdx = 0;
+  for (let i = 0; i < MAP_CREATORS.length; i++) {
+    const m = MAP_CREATORS[i]();
+    if (m.name === currentMap.name) { mapIdx = i; break; }
+  }
+  const data = {
+    player: { x: player.x, y: player.y, facing: player.facing, name: player.name,
+      party: player.party.map(c => ({ dex: c.dex, level: c.level, xp: c.xp, hp: c.hp, moves: c.moves, status: c.status,
+        statStages: c.statStages, confusionTurns: c.confusionTurns })),
+      money: player.money, badges: player.badges, storyFlags: player.storyFlags,
+      rivalName: player.rivalName, rivalStarter: player.rivalStarter, starterChoice: player.starterChoice,
+      inventory: player.inventory, stepCounter: player.stepCounter, playTime: player.playTime },
+    mapIdx: mapIdx,
+    pokedex: pokedex,
+    defeatedTrainers: currentMap ? currentMap.npcs.filter(n => n.defeated).map(n => n.name) : []
+  };
+  try { localStorage.setItem("minimon_save", JSON.stringify(data)); return true; } catch(e) { return false; }
+}
+
+function loadGame() {
+  try {
+    const raw = localStorage.getItem("minimon_save");
+    if (!raw) return false;
+    const data = JSON.parse(raw);
+    const p = data.player;
+    player.x = p.x; player.y = p.y; player.facing = p.facing; player.name = p.name;
+    player.money = p.money; player.badges = p.badges || []; player.storyFlags = p.storyFlags || {};
+    player.rivalName = p.rivalName || "Luna"; player.rivalStarter = p.rivalStarter; player.starterChoice = p.starterChoice;
+    player.inventory = p.inventory || {}; player.stepCounter = p.stepCounter || 0; player.playTime = p.playTime || 0;
+    player.party = (p.party || []).map(c => {
+      const bc = new BattleCreature(c.dex, c.level);
+      bc.xp = c.xp; bc.hp = c.hp; bc.moves = c.moves; bc.status = c.status || null;
+      bc.statStages = c.statStages || [0,0,0,0,0,0]; bc.confusionTurns = c.confusionTurns || 0;
+      return bc;
+    });
+    pokedex = data.pokedex || {};
+    currentMap = MAP_CREATORS[data.mapIdx || 0]();
+    if (data.defeatedTrainers) {
+      for (const npc of currentMap.npcs) {
+        if (data.defeatedTrainers.includes(npc.name)) npc.defeated = true;
+      }
+    }
+    return true;
+  } catch(e) { return false; }
+}
+
+function deleteSave() { try { localStorage.removeItem("minimon_save"); } catch(e) {} }
+function tryHasSave() { try { return !!localStorage.getItem("minimon_save"); } catch(e) { return false; } }
 const SHOP_ITEMS = [
   I_POTION,I_SPOTION,I_HPOTION,
   I_FHEAL,
   I_SPHERE,I_GSPHERE,I_USPHERE,
   I_REVIVE,
   I_XATK,I_XDEF,
+  I_REPEL,
   I_TM_EMBER,I_TM_WGUN,I_TM_VWHIP,I_TM_TSHOCK,I_TM_ISHARD,I_TM_BITE,I_TM_SBALL,I_TM_DCLAW,I_TMSEDGE,
   I_TM_ASLASH,I_TM_DGLEAM,I_TM_FLAMET,I_TM_HYDROP,I_TM_SOLBEAM,I_TM_THUND,I_TM_BLIZZ,I_TM_EQUAKE,
   I_TM_CRUNCH,I_TM_RECOVER,I_TM_SDANCE
 ];
 
-// Player state
 const player = {
   x:10, y:10, facing:"down", name:"Hero", party:[], money:3000, badges:[], storyFlags:{},
   rivalName:"Luna", rivalStarter:null, starterChoice:null, stepCounter:0, playTime:0,
@@ -56,11 +130,72 @@ function addCreature(c){if(player.party.length<6){player.party.push(c);return tr
 function aliveParty(){return player.party.filter(c=>c.isAlive());}
 function bestSphere(){if(hasItem(I_MSPHERE))return[I_MSPHERE,SPHERE_MASTER];if(hasItem(I_USPHERE))return[I_USPHERE,SPHERE_ULTRA];if(hasItem(I_GSPHERE))return[I_GSPHERE,SPHERE_GREAT];if(hasItem(I_SPHERE))return[I_SPHERE,SPHERE_NORMAL];return[null,0];}
 
+// Bag tab definitions
+const BAG_TABS = [
+  { name: "Medicine", items: ["Potion","Super Potion","Hyper Potion","Full Heal","Revive","Full Revive"] },
+  { name: "Spheres", items: ["Soul Sphere","Great Sphere","Ultra Sphere","Master Sphere"] },
+  { name: "TMs", items: ALL_TM },
+  { name: "Battle", items: ["X Attack","X Defense"] }
+];
+function getBagItems(tabIdx) {
+  const tab = BAG_TABS[tabIdx];
+  if (!tab) return [];
+  return tab.items.filter(name => (player.inventory[name] || 0) > 0);
+}
+function useOverworldItem(itemName) {
+  // Easter egg: Repel during starter selection transforms starters into legendaries
+  if (itemName === I_REPEL && state === S_STARTER) {
+    repelUsedInStarter = true;
+    pendingStarter = starterLegendaryOptions;
+    removeItem(itemName);
+    state = S_STARTER; cursor = 0;
+    return null; // will re-render starter with legendary options
+  }
+  if ([I_POTION,I_SPOTION,I_HPOTION].includes(itemName)) {
+    if (!player.party.length) return "No Minis to heal!";
+    const amt = { [I_POTION]:20, [I_SPOTION]:60, [I_HPOTION]:200 }[itemName];
+    const injured = player.party.filter(c => c.hp < c.maxHP && c.isAlive());
+    if (!injured.length) return "All Minis are at full health!";
+    pendingUseItem = itemName;
+    partyMode = "use";
+    return null; // needs target selection
+  }
+  if (itemName === I_FHEAL) {
+    const statused = player.party.filter(c => c.status);
+    if (!statused.length) return "No Minis with status conditions!";
+    for (const c of player.party) { c.status = null; c.confusionTurns = 0; }
+    removeItem(itemName);
+    return "All status conditions cured!";
+  }
+  if ([I_REVIVE,I_FREVIVE].includes(itemName)) {
+    const fainted = player.party.filter(c => !c.isAlive());
+    if (!fainted.length) return "No fainted Minis!";
+    pendingUseItem = itemName;
+    partyMode = "use";
+    return null; // needs target selection
+  }
+  if ([I_XATK,I_XDEF].includes(itemName)) return "X items can only be used in battle!";
+  if ([I_SPHERE,I_GSPHERE,I_USPHERE,I_MSPHERE].includes(itemName)) return "Spheres can only be used in battle!";
+  if (ALL_TM.includes(itemName)) { pendingTM = { itemName: itemName }; useTM(itemName); return null; }
+  return "Can't use this here!";
+}
+function applyOverworldItem(itemName, target) {
+  if ([I_POTION,I_SPOTION,I_HPOTION].includes(itemName)) {
+    const amt = { [I_POTION]:20, [I_SPOTION]:60, [I_HPOTION]:200 }[itemName];
+    if (removeItem(itemName)) { target.heal(amt); return "Used " + itemName + " on " + target.name + "! Healed " + amt + " HP!"; }
+  }
+  if ([I_REVIVE,I_FREVIVE].includes(itemName)) {
+    const hp = itemName === I_REVIVE ? 1 : target.maxHP;
+    if (removeItem(itemName)) { target.hp = hp; return target.name + " was revived!"; }
+  }
+  return "Failed!";
+}
+
 // === STATE HANDLERS ===
 function setDialog(msgs, speaker) { dialogQueue = msgs.slice(); dialogSpeaker = speaker || ""; nextDialog(); }
 function nextDialog() {
   if (dialogQueue.length) { dialogCurrent = dialogQueue.shift(); return; }
-  // Queue empty - process pending actions
+  if (pendingNameInput) { pendingNameInput = false; state = S_NAME; nameInput = ""; nameCursor = 0; return; }
   if (pendingStarter) { state = S_STARTER; cursor = 0; return; }
   if (pendingTrainer) { const npc = pendingTrainer; pendingTrainer = null; if (npc.type === "rival") startRivalBattle(npc); else startTrainerBattle(npc); return; }
   if (pendingGym) { const npc = pendingGym; pendingGym = null; startGymBattle(npc); return; }
@@ -72,6 +207,7 @@ function nextDialog() {
 }
 function advanceDialog() {
   if (dialogQueue.length) { dialogCurrent = dialogQueue.shift(); return; }
+  if (pendingNameInput) { pendingNameInput = false; state = S_NAME; nameInput = ""; nameCursor = 0; return; }
   if (pendingStarter) { state = S_STARTER; cursor = 0; return; }
   if (pendingTrainer) { const npc = pendingTrainer; pendingTrainer = null; if (npc.type === "rival") startRivalBattle(npc); else startTrainerBattle(npc); return; }
   if (pendingGym) { const npc = pendingGym; pendingGym = null; startGymBattle(npc); return; }
@@ -83,6 +219,7 @@ function advanceDialog() {
 
 function healParty() {
   for (const c of player.party) { c.hp = c.maxHP; c.status = null; c.confusionTurns = 0; }
+  state = S_DIALOG;
   setDialog(["Your team has been fully healed!"]);
 }
 
@@ -104,7 +241,10 @@ function movePlayer(dx, dy, facing) {
 }
 
 function changeMap(idx, x, y) {
-  if (idx >= 0 && idx < MAP_COUNT) { currentMap = MAP_CREATORS[idx](); player.x = x; player.y = y; }
+  if (idx >= 0 && idx < MAP_COUNT) {
+    R.triggerMapTransition();
+    currentMap = MAP_CREATORS[idx](); player.x = x; player.y = y;
+  }
 }
 
 function getInteractableInfo() {
@@ -124,7 +264,7 @@ function interact() {
   if (player.facing === "up") fy--; else if (player.facing === "down") fy++;
   else if (player.facing === "left") fx--; else if (player.facing === "right") fx++;
   for (const npc of currentMap.npcs) { if (npc.x === fx && npc.y === fy) { interactNPC(npc); return; } }
-  for (const s of currentMap.signs) { if (s.x === fx && s.y === fy) { setDialog([s.text]); return; } }
+  for (const s of currentMap.signs) { if (s.x === fx && s.y === fy) { state = S_DIALOG; setDialog([s.text]); return; } }
   const tile = getT(currentMap, fx, fy);
   if (tile === TILE_GYM) { for (const npc of currentMap.npcs) if (npc.type === "gym_leader" && !npc.defeated) { startGymBattle(npc); return; } }
   if (tile === TILE_SHOP) { state = S_SHOP; shopCursor = 0; return; }
@@ -132,9 +272,17 @@ function interact() {
 }
 
 function interactNPC(npc) {
+  state = S_DIALOG;
   if (["trainer","rival","gym_leader"].includes(npc.type) && !npc.defeated) {
     setDialog(npc.dialog, npc.name);
     if (npc.type === "gym_leader") pendingGym = npc; else pendingTrainer = npc;
+    return;
+  }
+  // Rematch system - after defeating Elite Four, trainers can be rematched with stronger teams
+  if (["trainer","gym_leader"].includes(npc.type) && npc.defeated && npc.rematchParty && player.badges.length >= 8) {
+    setDialog(npc.rematchDialog || ["Let's battle again!"], npc.name);
+    pendingTrainer = npc;
+    npc.isRematch = true;
     return;
   }
   if (npc.type === "healer") { setDialog(npc.dialog || ["Let me heal your Minis!"], npc.name); pendingHealer = true; return; }
@@ -169,35 +317,77 @@ function executeTrade(npc) {
 }
 
 // Battle start functions
-function startWildBattle(dex, lv) {
-  const wild = new BattleCreature(dex, lv, null, true);
-  if (!aliveParty().length) { state = S_GAMEOVER; return; }
-  battleState = new BattleState(aliveParty(), [wild], false, "", true, true);
-  state = S_BATTLE; battlePhase = "menu"; cursor = 0;
-  battleState.message = "A wild " + wild.name + " appeared!";
+function beginBattleTransition(type, data) {
+  encounterType = type;
+  encounterData = data;
+  encounterTimer = 0;
+  state = S_ENCOUNTER;
 }
-function startTrainerBattle(npc) {
-  const party = npc.party.map(([d, l]) => new BattleCreature(d, l));
-  if (!aliveParty().length) { state = S_GAMEOVER; return; }
-  battleState = new BattleState(aliveParty(), party, true, npc.name, false, false);
-  state = S_BATTLE; battlePhase = "menu"; cursor = 0;
-  battleState.message = npc.name + " wants to battle!";
+function finishBattleTransition() {
+  const type = encounterType;
+  const data = encounterData;
+  encounterData = null;
+  if (type === "wild") {
+    const wild = new BattleCreature(data.dex, data.lv, null, true);
+    pokedexSee(data.dex);
+    if (!aliveParty().length) { state = S_GAMEOVER; return; }
+    battleState = new BattleState(aliveParty(), [wild], false, "", true, true);
+    state = S_BATTLE; battlePhase = "menu"; cursor = 0;
+    battleState.addMsg("A wild " + wild.name + " appeared!");
+    battleState.addMsg("Go, " + battleState.player.name + "!");
+  } else if (type === "trainer") {
+    const npc = data;
+    let party;
+    if (npc.isRematch && npc.rematchParty) {
+      party = npc.rematchParty.map(([d, l]) => { pokedexSee(d); return new BattleCreature(d, l); });
+    } else {
+      party = npc.party.map(([d, l]) => { pokedexSee(d); return new BattleCreature(d, l); });
+    }
+    if (!aliveParty().length) { state = S_GAMEOVER; return; }
+    battleState = new BattleState(aliveParty(), party, true, npc.name, false, false, npc.type === "gym_leader");
+    if (npc.aiLevel !== undefined) battleState.aiLevel = npc.aiLevel;
+    state = S_BATTLE; battlePhase = "menu"; cursor = 0;
+    battleState.addMsg((npc.isRematch ? npc.name + " wants a rematch!" : npc.name + " wants to battle!"));
+    battleState.addMsg(npc.name + " sent out " + party[0].name + "!");
+    battleState.addMsg("Go, " + battleState.player.name + "!");
+  } else if (type === "rival") {
+    const npc = data;
+    const badgeCount = player.badges.length;
+    const baseLv = npc.rival_enc === 1 ? 14 : 20;
+    const lv = baseLv + badgeCount * 3;
+    const party = [new BattleCreature(player.rivalStarter, lv)];
+    if (badgeCount >= 4) party.push(new BattleCreature(npc.rival_enc === 1 ? 13 : 49, lv - 2));
+    if (badgeCount >= 6) party.push(new BattleCreature(npc.rival_enc === 1 ? 23 : 39, lv - 4));
+    if (!aliveParty().length) { state = S_GAMEOVER; return; }
+    battleState = new BattleState(aliveParty(), party, true, npc.name, false, false);
+    battleState.aiLevel = AI_GYM;
+    state = S_BATTLE; battlePhase = "menu"; cursor = 0;
+    battleState.message = "Rival " + npc.name + " wants to battle!";
+  } else if (type === "gym") {
+    const npc = data;
+    const party = npc.party.map(([d, l]) => new BattleCreature(d, l));
+    if (!aliveParty().length) { state = S_GAMEOVER; return; }
+    battleState = new BattleState(aliveParty(), party, true, npc.name, false, false, true);
+    if (npc.aiLevel !== undefined) battleState.aiLevel = npc.aiLevel;
+    state = S_BATTLE; battlePhase = "menu"; cursor = 0;
+    battleState.addMsg("Gym Leader " + npc.name + " wants to battle!");
+    battleState.addMsg(npc.name + " sent out " + party[0].name + "!");
+    battleState.addMsg("Go, " + battleState.player.name + "!");
+  } else if (type === "legendary") {
+    const dex = data.dex, lv = data.lv || 50;
+    const wild = new BattleCreature(dex, lv, null, true);
+    pokedexSee(dex);
+    if (!aliveParty().length) { state = S_GAMEOVER; return; }
+    battleState = new BattleState(aliveParty(), [wild], false, "", false, true);
+    state = S_BATTLE; battlePhase = "menu"; cursor = 0;
+    battleState.message = "A legendary " + wild.name + " appeared!";
+    battleState.isLegendary = true;
+  }
 }
-function startRivalBattle(npc) {
-  const lv = npc.rival_enc === 1 ? 14 : 20;
-  const party = [new BattleCreature(player.rivalStarter, lv)];
-  if (!aliveParty().length) { state = S_GAMEOVER; return; }
-  battleState = new BattleState(aliveParty(), party, true, npc.name, false, false);
-  state = S_BATTLE; battlePhase = "menu"; cursor = 0;
-  battleState.message = "Rival " + npc.name + " wants to battle!";
-}
-function startGymBattle(npc) {
-  const party = npc.party.map(([d, l]) => new BattleCreature(d, l));
-  if (!aliveParty().length) { state = S_GAMEOVER; return; }
-  battleState = new BattleState(aliveParty(), party, true, npc.name, false, false);
-  state = S_BATTLE; battlePhase = "menu"; cursor = 0;
-  battleState.message = "Gym Leader " + npc.name + " wants to battle!";
-}
+function startTrainerBattle(npc) { beginBattleTransition("trainer", npc); }
+function startRivalBattle(npc) { beginBattleTransition("rival", npc); }
+function startGymBattle(npc) { beginBattleTransition("gym", npc); }
+function startWildBattle(dex, lv) { beginBattleTransition("wild", { dex, lv }); }
 
 // Battle action handlers
 function selectBattleAction() {
@@ -215,8 +405,23 @@ function selectBattleAction() {
 function useBattleMove() {
   const p = battleState.player; const mv = p.moves[cursor];
   if (mv.pp <= 0) { battleState.addMsg("No PP left!"); battlePhase = "message"; return; }
+  const e = battleState.enemy;
+  const eX = 370, eY = 130; // enemy position for effects
+  const pX = 90, pY = 220; // player position for effects
+  // Store which move was used for effects
+  const moveData = MOVES[mv.id];
+  battleState._lastMoveType = moveData ? moveData.type : null;
+  battleState._lastTarget = "enemy";
   battleState.executeTurn(cursor);
+  // Trigger effects based on result
+  if (moveData && moveData.category !== STATUS) {
+    const eff = typeEff(moveData.type, e.types);
+    R.triggerAttackFX(moveData.type, eX, eY, false, eff);
+    R.addDamageNum(eX, eY - 20, "", eff > 1 ? "super_effective" : (eff < 1 ? "not_effective" : "normal"));
+  }
   if (!battleState.enemy.isAlive()) {
+    R.triggerShake(8, 0.3);
+    R.addParticles(eX, eY, "hit", 15);
     if (!battleState.nextEnemy()) {
       battleState.playerWon = true; battleState.battleOver = true;
       battleState.addMsg("You defeated " + battleState.trainerName + "!");
@@ -224,13 +429,20 @@ function useBattleMove() {
         for (const npc of currentMap.npcs) {
           if (npc.name === battleState.trainerName) {
             npc.defeated = true;
-            if (npc.reward) { player.money += npc.reward; battleState.addMsg("Got $" + npc.reward + "!"); }
-            if (npc.badge) { player.badges.push(npc.badge); battleState.addMsg("Got " + npc.badge + "!"); }
+            const reward = npc.isRematch ? Math.floor((npc.reward || 3000) * 1.5) : (npc.reward || 0);
+            if (reward) { player.money += reward; battleState.addMsg("Got $" + reward + "!"); }
+            if (npc.badge && !player.badges.includes(npc.badge)) {
+              player.badges.push(npc.badge); battleState.addMsg("Got " + npc.badge + "!");
+            }
+            if (npc.isRematch) {
+              battleState.addMsg("You won the rematch!");
+            }
           }
         }
       }
     }
   } else if (!battleState.player.isAlive()) {
+    R.triggerShake(8, 0.3);
     if (!battleState.nextPlayer()) { battleState.playerWon = false; battleState.battleOver = true; battleState.addMsg("No more Minis!"); }
     else battleState.addMsg("Go, " + battleState.player.name + "!");
   }
@@ -247,7 +459,7 @@ function switchBattleCreature() {
   // Enemy attacks after switch
   const e = battleState.enemy;
   if (e && e.isAlive() && battleState.player && battleState.player.isAlive()) {
-    const eMV = getAIMove(e, battleState.player, battleState.isTrainer ? AI_TRAINER : AI_WILD);
+    const eMV = getAIMove(e, battleState.player, battleState.aiLevel !== undefined ? battleState.aiLevel : (battleState.isTrainer ? AI_TRAINER : AI_WILD));
     const eMD = MOVES[eMV.id];
     if (eMD && eMD.category !== STATUS) {
       const [damage, effect] = calcDamage(e, battleState.player, eMD);
@@ -259,6 +471,9 @@ function switchBattleCreature() {
       else if (effect === "no_effect") effText = " It had no effect!";
       else if (effect && effect.includes("critical")) effText = " A critical hit!";
       battleState.addMsg(e.name + " used " + eMD.name + "!" + effText);
+      // Enemy attack effects
+      const eff = typeEff(eMD.type, battleState.player.types);
+      R.triggerAttackFX(eMD.type, 90, 220, false, eff);
       if (!battleState.player.isAlive()) battleState.addMsg(battleState.player.name + " fainted!");
     } else if (eMD) {
       applyStatus(e, battleState.player, eMD);
@@ -275,13 +490,19 @@ function useBattleItem() {
   const [name] = items[cursor];
   if ([I_POTION,I_SPOTION,I_HPOTION].includes(name)) {
     const amt = { [I_POTION]:20, [I_SPOTION]:60, [I_HPOTION]:200 }[name];
-    if (removeItem(name)) { battleState.player.heal(amt); battleState.addMsg("Used " + name + "! Healed " + amt + " HP!"); }
+    if (removeItem(name)) {
+      battleState.player.heal(amt);
+      battleState.addMsg("Used " + name + "! Healed " + amt + " HP!");
+      R.addParticles(90, 220, "light", 8);
+      R.addDamageNum(90, 200, "+" + amt, "heal");
+    }
   } else if (name === I_FHEAL) {
     if (removeItem(name)) { battleState.player.status = null; battleState.player.confusionTurns = 0; battleState.addMsg("Status healed!"); }
   } else if ([I_SPHERE,I_GSPHERE,I_USPHERE,I_MSPHERE].includes(name)) {
     const mult = { [I_SPHERE]:1, [I_GSPHERE]:1.5, [I_USPHERE]:2, [I_MSPHERE]:255 }[name];
     if (removeItem(name)) {
       const [caught, shakes] = attemptCatch(battleState.enemy, mult);
+      R.triggerFlash([255, 255, 100], 0.4);
       if (caught) {
         if (player.party.length >= 6) {
           battleState.addMsg("Gotcha! But your team is full! " + battleState.enemy.name + " got away!");
@@ -289,6 +510,7 @@ function useBattleItem() {
         } else {
           battleState.addMsg("Gotcha! " + battleState.enemy.name + " was caught!");
           const c = new BattleCreature(battleState.enemy.dex, battleState.enemy.level);
+          pokedexCatch(battleState.enemy.dex);
           addCreature(c);
           if (!battleState.nextEnemy()) { battleState.playerWon = true; battleState.battleOver = true; }
         }
@@ -296,8 +518,12 @@ function useBattleItem() {
     }
   } else if ([I_REVIVE,I_FREVIVE].includes(name)) {
     const fainted = player.party.filter(c => !c.isAlive() && c !== battleState.player);
-    if (fainted.length) { const hp = name === I_REVIVE ? 1 : fainted[0].maxHP; if (removeItem(name)) { fainted[0].hp = hp; battleState.addMsg(fainted[0].name + " revived!"); } }
+    if (fainted.length) { const hp = name === I_REVIVE ? 1 : fainted[0].maxHP; if (removeItem(name)) { fainted[0].hp = hp; battleState.addMsg(fainted[0].name + " revived!"); R.addParticles(90, 220, "light", 10); } }
     else battleState.addMsg("No fainted Minis!");
+  } else if (name === I_XATK) {
+    if (removeItem(name)) { battleState.player.statStages[1] = Math.min(6, battleState.player.statStages[1] + 1); battleState.addMsg(battleState.player.name + "'s ATK rose!"); R.triggerFlash([255, 100, 100], 0.2); }
+  } else if (name === I_XDEF) {
+    if (removeItem(name)) { battleState.player.statStages[2] = Math.min(6, battleState.player.statStages[2] + 1); battleState.addMsg(battleState.player.name + "'s DEF rose!"); R.triggerFlash([100, 100, 255], 0.2); }
   }
   battlePhase = "message";
 }
@@ -307,7 +533,7 @@ function nextBattleMsg() {
   if (msg) { battleState.message = msg; return; }
   if (battleState.battleOver) {
     if (battleState.fled) state = S_OW;
-    else if (battleState.playerWon) { checkEvolution(); if (state !== S_EVOLUTION && state !== S_MOVES) state = S_OW; }
+    else if (battleState.playerWon) { checkEvolution(); if (state !== S_EVOLUTION && state !== S_MOVES && state !== S_DIALOG) state = S_OW; }
     else state = S_GAMEOVER;
   } else { battlePhase = "menu"; cursor = 0; }
 }
@@ -317,7 +543,7 @@ function checkEvolution() {
     if (c.pendingMoves && c.pendingMoves.length) {
       const nm = c.pendingMoves.shift(); const m = MOVES[nm.id]; if (!m) continue;
       if (c.moves.length >= 4) { pendingMoveLearn = { creature: c, newMove: nm }; state = S_MOVES; cursor = 0; }
-      else { c.moves.push(nm); setDialog([c.name + " learned " + m.name + "!"]); }
+      else { c.moves.push(nm); state = S_DIALOG; setDialog([c.name + " learned " + m.name + "!"]); }
       return;
     }
   }
@@ -335,39 +561,61 @@ function handleMoveLearn() {
   if (!pendingMoveLearn) return;
   const { creature, newMove } = pendingMoveLearn;
   const md = MOVES[newMove.id];
-  // Auto-learn if space
   if (creature.moves.length < 4) { creature.moves.push(newMove); pendingMoveLearn = null; setDialog([creature.name + " learned " + md.name + "!"]); return; }
-  // Otherwise show forget menu
   state = S_MOVES; cursor = 0;
 }
 
+function confirmName() {
+  player.name = nameInput || "Hero";
+  repelUsedInStarter = false;
+  setDialog([
+    "Well then, " + player.name + "! Your adventure begins now!",
+    "Your neighbor Luna has also just received a partner Mini.",
+    "Now, choose your very first Mini wisely!",
+    "It will be your trusted partner on this journey!"
+  ]);
+  pendingStarter = [1, 2, 3];
+  state = S_DIALOG;
+}
+
 function chooseStarter() {
-  const dex = pendingStarter[cursor];
-  const starter = new BattleCreature(dex, 5);
+  let dex = pendingStarter[cursor];
+  let starterName = CREATURES[dex] ? CREATURES[dex].name : "Mini";
+  let starterLevel = repelUsedInStarter ? 10 : 5;
+  const starter = new BattleCreature(dex, starterLevel);
   addCreature(starter);
   player.starterChoice = dex; player.storyFlags[FLAG_STARTER] = true;
-  // Rival picks the type that has advantage over yours
   const starterAdvantage = { 1: 3, 2: 1, 3: 2 };
   player.rivalStarter = starterAdvantage[dex] || pendingStarter[(cursor + 1) % 3];
   pendingStarter = null;
-  addItem(I_SPHERE, 10);
-  addItem(I_POTION, 5);
+  addItem(I_SPHERE, 5);
+  addItem(I_POTION, 2);
   addItem(I_FHEAL, 1);
-  setDialog([
-    "You chose " + starter.name + "!",
-    "Professor Sage gave you 10 Mini Balls and 5 Potions!",
-    "You also got 1 Full Heal for emergencies!",
-    "Now go out there and catch some Minis!",
-    "Remember - weaken them first, then throw a Mini Ball!",
-    "Luna is waiting for you on Route 1..."
-  ]);
+  let dialogLines = [];
+  if (repelUsedInStarter) {
+    dialogLines.push("The Repel transformed the Minis into legendary beings!");
+    dialogLines.push("You chose " + starterName + " (Legendary)!");
+    dialogLines.push("Professor Sage gave you 5 Soul Spheres and 2 Potions!");
+    dialogLines.push("You also got 1 Full Heal for emergencies!");
+    dialogLines.push("This legendary Mini will grow stronger than any normal one!");
+    dialogLines.push("Luna is waiting for you on Route 1...");
+  } else {
+    dialogLines.push("You chose " + starterName + "!");
+    dialogLines.push("Professor Sage gave you 5 Soul Spheres and 2 Potions!");
+    dialogLines.push("You also got 1 Full Heal for emergencies!");
+    dialogLines.push("Now go out there and catch some Minis!");
+    dialogLines.push("Remember - weaken them first, then throw a Sphere!");
+    dialogLines.push("Luna is waiting for you on Route 1...");
+  }
+  setDialog(dialogLines);
+  state = S_DIALOG;
 }
 
 function useTM(itemName) {
   const tmMove = TM_MOVES[itemName]; const compat = TM_COMPAT[itemName] || [];
-  if (!tmMove) { setDialog(["This TM is invalid!"]); return; }
+  if (!tmMove) { state = S_DIALOG; setDialog(["This TM is invalid!"]); return; }
   const compatible = player.party.filter(c => c.types.some(t => compat.includes(t)));
-  if (!compatible.length) { setDialog(["No Minis can learn this move!"]); return; }
+  if (!compatible.length) { state = S_DIALOG; setDialog(["No Minis can learn this move!"]); return; }
   pendingTM = { itemName, compatible };
   state = S_TM; cursor = 0;
 }
@@ -393,20 +641,22 @@ function selectTMCreature() {
 }
 
 // Menu handlers
-function selectMenu() {
-  const opts = ["Party","Bag","Save","Pokedex","Quit"];
+function selectPauseMenu() {
+  const opts = ["Party","Bag","Pokedex","Save","Load","Map","Close"];
   const choice = opts[cursor];
-  if (choice === "Party") { state = S_PARTY; cursor = 0; }
-  else if (choice === "Bag") { state = S_BAG; cursor = 0; }
-  else if (choice === "Save") { setDialog(["Game saved! (Not really, but imagine it!)"]); }
-  else if (choice === "Pokedex") { setDialog(["Seen " + Object.keys(CREATURES).length + " Minis in Minimon!"]); }
-  else if (choice === "Quit") running = false;
+  if (choice === "Party") { state = S_PARTY; cursor = 0; partyMode = "select"; }
+  else if (choice === "Bag") { bagReturnState = S_PAUSE; state = S_BAG_CAT; bagTab = 0; cursor = BAG_TABS.length; }
+  else if (choice === "Save") { state = S_DIALOG; if (saveGame()) setDialog(["Game saved!"]); else setDialog(["Save failed!"]); }
+  else if (choice === "Load") { if (loadGame()) { state = S_DIALOG; setDialog(["Game loaded!"]); } else { state = S_DIALOG; setDialog(["No save found!"]); } }
+  else if (choice === "Pokedex") { state = "pokedex"; cursor = 0; }
+  else if (choice === "Map") { state = S_MAP; cursor = 0; }
+  else if (choice === "Close") { state = S_OW; }
 }
 
 function selectParty() {
   if (cursor < player.party.length) {
-    const c = player.party[cursor];
-    setDialog([c.name + " Lv." + c.level, "HP: " + c.hp + "/" + c.maxHP, "ATK: " + c.stats[1] + " DEF: " + c.stats[2], "SPD: " + c.stats[3] + " SPC: " + c.stats[4]]);
+    partyDetailIdx = cursor;
+    state = S_PARTY_DETAIL; cursor = 0;
   }
 }
 
@@ -421,7 +671,7 @@ function useItem() {
         if (c.hp < c.maxHP) {
           if (removeItem(name)) { c.heal(amt); setDialog(["Used " + name + " on " + c.name + "! Healed " + amt + " HP!"]); }
           else setDialog(["No " + name + " left!"]);
-          return;
+          state = S_DIALOG; return;
         }
       }
       setDialog(["All Minis are at full health!"]);
@@ -434,22 +684,24 @@ function useItem() {
     const fainted = player.party.filter(c => !c.isAlive());
     if (fainted.length) { const hp = name === I_REVIVE ? 1 : fainted[0].maxHP; if (removeItem(name)) setDialog([fainted[0].name + " revived!"]); }
     else setDialog(["No fainted Minis!"]);
-  } else setDialog([name + " can only be used in battle!"]);
-  state = S_DIALOG; nextDialog();
+  }   else setDialog([name + " can only be used in battle!"]);
+  state = S_DIALOG;
 }
 
 function buyItem() {
   const item = SHOP_ITEMS[shopCursor]; const price = PRICES[item] || 100;
   if (player.money >= price) { player.money -= price; addItem(item); setDialog(["Bought " + item + " for $" + price + "!"]); }
   else setDialog(["Not enough money!"]);
-  state = S_DIALOG; nextDialog();
+  state = S_DIALOG;
 }
 
 // === INPUT HANDLING ===
 let scrollCD = 0;
 function handleScroll(dir) {
+  if (state === S_ENCOUNTER) return;
   if (state === S_TITLE) { state = S_INTRO; advanceIntro(); }
-  else if (state === S_INTRO) advanceIntro();
+  else if (state === S_INTRO) advanceDialog();
+  else if (state === S_NAME) { nameCursor = (nameCursor + dir + 29) % 29; }
   else if (state === S_BATTLE) {
     if (battlePhase === "message") nextBattleMsg();
     else if (battlePhase === "select") cursor = Math.max(0, Math.min(3, cursor + dir));
@@ -457,12 +709,26 @@ function handleScroll(dir) {
     else if (battlePhase === "party") cursor = Math.max(0, Math.min(player.party.length - 1, cursor + dir));
     else if (battlePhase === "bag") { const items = Object.entries(player.inventory).filter(([k, v]) => v > 0 && [I_POTION,I_SPOTION,I_HPOTION,I_FHEAL,I_SPHERE,I_GSPHERE,I_USPHERE,I_MSPHERE,I_REVIVE,I_FREVIVE].includes(k)); cursor = Math.max(0, Math.min(items.length - 1, cursor + dir)); }
   }
-  else if (state === S_MENU) cursor = Math.max(0, Math.min(4, cursor + dir));
-  else if (state === S_PARTY) cursor = Math.max(0, Math.min(player.party.length - 1, cursor + dir));
-  else if (state === S_BAG) { const items = Object.entries(player.inventory).filter(([, v]) => v > 0); cursor = Math.max(0, Math.min(items.length - 1, cursor + dir)); }
+  else if (state === S_PAUSE) { cursor = Math.max(0, Math.min(6, cursor + dir)); }
+  else if (state === S_PARTY) {
+    const maxC = partyMode === "use" ? player.party.filter(c => (partyMode === "use" && pendingUseItem ? true : true)).length - 1 : player.party.length - 1;
+    cursor = Math.max(0, Math.min(player.party.length - 1, cursor + dir));
+  }
+  else if (state === S_PARTY_DETAIL) {
+    // 3 buttons: Swap, Summary, Back (or 2 in swap mode)
+    const maxB = partyMode === "swap" ? 1 : 2;
+    cursor = Math.max(0, Math.min(maxB, cursor + dir));
+  }
+  else if (state === S_BAG_CAT) {
+    const items = getBagItems(bagTab);
+    const totalSlots = BAG_TABS.length + items.length;
+    if (totalSlots > 0) cursor = (cursor + dir + totalSlots) % totalSlots;
+  }
+  else if (state === S_MAP) cursor = Math.max(0, Math.min(11, cursor + dir));
   else if (state === S_MOVES && pendingMoveLearn) { cursor = Math.max(0, Math.min(pendingMoveLearn.creature.moves.length - 1, cursor + dir)); }
   else if (state === S_DIALOG) advanceDialog();
   else if (state === S_SHOP) shopCursor = Math.max(0, Math.min(SHOP_ITEMS.length - 1, shopCursor + dir));
+  else if (state === "pokedex") { const max = Math.max(0, Object.entries(pokedex).length - 15); cursor = Math.max(0, Math.min(max, cursor + dir)); }
   else if (state === S_EVOLUTION) advanceDialog();
   else if (state === S_STARTER) cursor = Math.max(0, Math.min(2, cursor + dir));
   else if (state === S_TM && pendingTM) cursor = Math.max(0, Math.min(pendingTM.compatible.length - 1, cursor + dir));
@@ -470,10 +736,22 @@ function handleScroll(dir) {
 }
 
 function handleClick(button, mx, my) {
-  if (state === S_TITLE || state === S_INTRO) advanceIntro();
+  if (state === S_ENCOUNTER) return;
+  if (state === S_TITLE) {
+    if ((button === 2 || button === 3) && tryHasSave()) { if (loadGame()) state = S_OW; }
+    else advanceIntro();
+  }
+  else if (state === S_INTRO) advanceDialog();
+  else if (state === S_NAME) {
+    if (nameCursor < 26) { nameInput += NAME_CHARS[nameCursor]; if (nameInput.length > 10) nameInput = nameInput.slice(0, 10); }
+    else if (nameCursor === 26) { nameInput = nameInput.slice(0, -1); }
+    else if (nameCursor === 27) { confirmName(); }
+    else if (nameCursor === 28) { nameInput += " "; if (nameInput.length > 10) nameInput = nameInput.slice(0, 10); }
+  }
   else if (state === S_OW) {
     if (button === 1) {
-      // Check D-pad
+      // Pause button hit test
+      if (R.hitPauseButton(mx, my)) { state = S_PAUSE; cursor = 0; return; }
       const dx = mx - DPAD_CX, dy = my - DPAD_CY;
       const dist = Math.sqrt(dx * dx + dy * dy);
       if (dist <= DPAD_R && dist > 8) {
@@ -489,7 +767,7 @@ function handleClick(button, mx, my) {
         const ddy = player.facing === "down" ? 1 : player.facing === "up" ? -1 : 0;
         movePlayer(ddx, ddy, player.facing);
       }
-    } else if (button === 3) { state = S_MENU; cursor = 0; }
+    } else if (button === 3) { state = S_PAUSE; cursor = 0; }
   }
   else if (state === S_BATTLE) {
     if (button === 1) {
@@ -502,12 +780,75 @@ function handleClick(button, mx, my) {
       if (["moves","party","bag"].includes(battlePhase)) { battlePhase = "menu"; cursor = 0; }
     }
   }
-  else if (state === S_MENU && button === 1) selectMenu();
-  else if (state === S_MENU && button === 3) { state = S_OW; }
-  else if (state === S_PARTY && button === 1) selectParty();
-  else if (state === S_PARTY && button === 3) { state = S_MENU; cursor = 0; }
-  else if (state === S_BAG && button === 1) useItem();
-  else if (state === S_BAG && button === 3) { state = S_MENU; cursor = 0; }
+  else if (state === S_PAUSE && button === 1) selectPauseMenu();
+  else if (state === S_PAUSE && button === 3) { state = S_OW; }
+  else if (state === "pokedex") { state = S_PAUSE; cursor = 0; }
+  else if (state === S_PARTY && button === 1) {
+    if (partyMode === "use") {
+      if (cursor < player.party.length && pendingUseItem) {
+        const c = player.party[cursor];
+        const isRevive = [I_REVIVE, I_FREVIVE].includes(pendingUseItem);
+        const isPotion = [I_POTION, I_SPOTION, I_HPOTION].includes(pendingUseItem);
+        if (isRevive && c.isAlive()) { state = S_DIALOG; setDialog([c.name + " isn't fainted!"]); pendingUseItem = null; partyMode = "select"; return; }
+        if (isPotion && (!c.isAlive() || c.hp >= c.maxHP)) { state = S_DIALOG; setDialog([c.name + " doesn't need healing!"]); pendingUseItem = null; partyMode = "select"; return; }
+        const msg = applyOverworldItem(pendingUseItem, c);
+        pendingUseItem = null; partyMode = "select";
+        state = S_DIALOG; setDialog([msg]);
+      }
+    } else if (partyMode === "swap") {
+      // Swap creature positions
+      if (partyDetailIdx !== cursor && cursor < player.party.length) {
+        const tmp = player.party[partyDetailIdx];
+        player.party[partyDetailIdx] = player.party[cursor];
+        player.party[cursor] = tmp;
+        partyMode = "select";
+      }
+    } else {
+      partyDetailIdx = cursor;
+      state = S_PARTY_DETAIL; cursor = 0;
+    }
+  }
+  else if (state === S_PARTY && button === 3) {
+    if (partyMode === "use" || partyMode === "swap") { partyMode = "select"; }
+    else { state = S_PAUSE; cursor = 0; }
+  }
+  else if (state === S_PARTY_DETAIL && button === 1) {
+    // Buttons: cursor 0=Swap, 1=Summary, 2=Back
+    if (cursor === 0) {
+      partyMode = "swap"; state = S_PARTY; cursor = partyDetailIdx;
+    } else if (cursor === 1) {
+      // Summary toggle - stays on detail view
+    } else {
+      state = S_PARTY; cursor = partyDetailIdx; partyMode = "select";
+    }
+  }
+  else if (state === S_PARTY_DETAIL && button === 3) {
+    partyMode = "select"; state = S_PARTY; cursor = partyDetailIdx;
+  }
+  else if (state === S_BAG_CAT && button === 1) {
+    if (cursor < BAG_TABS.length) {
+      bagTab = cursor; cursor = BAG_TABS.length;
+    } else {
+      const items = getBagItems(bagTab);
+      const itemIdx = cursor - BAG_TABS.length;
+      if (itemIdx < items.length) {
+        const itemName = items[itemIdx];
+        const msg = useOverworldItem(itemName);
+        if (msg === null) {
+          // Check if we're in starter selection (easter egg)
+          if (state === S_STARTER) {
+            return; // Repel was used - already handled in useOverworldItem
+          }
+          state = S_PARTY; partyMode = "use"; cursor = 0;
+        } else if (msg) {
+          state = S_DIALOG; setDialog([msg]);
+        }
+      }
+    }
+  }
+  else if (state === S_BAG_CAT && button === 3) { state = bagReturnState; cursor = bagReturnState === S_STARTER ? 0 : BAG_TABS.length; }
+  else if (state === S_MAP && button === 1) { state = S_PAUSE; cursor = 5; }
+  else if (state === S_MAP && button === 3) { state = S_PAUSE; cursor = 5; }
   else if (state === S_MOVES && button === 1) {
     if (pendingMoveLearn) {
       const c = pendingMoveLearn.creature, nm = pendingMoveLearn.newMove;
@@ -518,6 +859,7 @@ function handleClick(button, mx, my) {
         pendingMoveLearn = null;
         if (tmItem) { pendingTM = null; removeItem(tmItem); }
         setDialog([c.name + " forgot " + oldName + " and learned " + MOVES[nm.id].name + "!"]);
+        state = S_DIALOG;
       }
     }
   }
@@ -526,15 +868,30 @@ function handleClick(button, mx, my) {
     if (button === 1) buyItem(); else if (button === 3) state = S_OW;
   }
   else if (state === S_EVOLUTION) advanceDialog();
-  else if (state === S_STARTER && button === 1) chooseStarter();
+  else if (state === S_STARTER && button === 1) {
+    if (mx >= 456 && mx <= 476 && my >= 2 && my <= 20) {
+      bagReturnState = S_STARTER;
+      state = S_BAG_CAT; bagTab = 0; cursor = BAG_TABS.length;
+      return;
+    }
+    chooseStarter();
+  }
   else if (state === S_TM && button === 1) selectTMCreature();
-  else if (state === S_TM && button === 3) { pendingTM = null; state = S_BAG; cursor = 0; }
+  else if (state === S_TM && button === 3) { pendingTM = null; state = S_BAG_CAT; cursor = BAG_TABS.length; }
   else if (state === S_GAMEOVER) { initGame(); state = S_TITLE; }
 }
 
 function handleKeyDown(key) {
+  if (state === S_ENCOUNTER) return;
+  if (key === "Shift") isSprinting = true;
+  if (state === S_TITLE) {
+    if (key === "Enter" || key === " " || key === "Escape") {
+      if (key === "Escape" && tryHasSave()) { if (loadGame()) state = S_OW; }
+      else advanceIntro();
+    }
+  }
   if (state === S_OW) {
-    if (key === "m" || key === "M") { state = S_MENU; cursor = 0; }
+    if (key === "m" || key === "M" || key === "Escape") { state = S_PAUSE; cursor = 0; }
     else if (key === "ArrowUp" || key === "w") movePlayer(0, -1, "up");
     else if (key === "ArrowDown" || key === "s") movePlayer(0, 1, "down");
     else if (key === "ArrowLeft" || key === "a") movePlayer(-1, 0, "left");
@@ -549,17 +906,64 @@ function handleKeyDown(key) {
       else if (battlePhase === "party") switchBattleCreature();
       else if (battlePhase === "bag") useBattleItem();
     }
-  } else if (state === S_MENU) {
+  } else if (state === S_PAUSE) {
     if (key === "Escape") state = S_OW;
-    else if (key === "Enter" || key === " ") selectMenu();
-  } else if (state === S_PARTY && key === "Escape") { state = S_MENU; cursor = 0; }
-  else if (state === S_BAG && key === "Escape") { state = S_MENU; cursor = 0; }
+    else if (key === "Enter" || key === " ") selectPauseMenu();
+  } else if (state === "pokedex") { if (key === "Escape") { state = S_PAUSE; cursor = 1; } }
+  else if (state === S_PARTY && key === "Escape") {
+    if (partyMode === "use" || partyMode === "swap") partyMode = "select";
+    else state = S_PAUSE;
+  }
+  else if (state === S_PARTY_DETAIL && key === "Escape") {
+    partyMode = "select"; state = S_PARTY; cursor = partyDetailIdx;
+  }
+  else if (state === S_PARTY_DETAIL && (key === "Enter" || key === " ")) {
+    // Same as button 1 click: Swap/Summary/Back
+    if (cursor === 0) { partyMode = "swap"; state = S_PARTY; cursor = partyDetailIdx; }
+    else if (cursor === 1) { /* Summary toggle */ }
+    else { state = S_PARTY; cursor = partyDetailIdx; partyMode = "select"; }
+  }
+  else if (state === S_BAG_CAT && key === "Escape") { state = S_PAUSE; cursor = 1; }
+  else if (state === S_BAG_CAT && (key === "Enter" || key === " ")) {
+    if (cursor < BAG_TABS.length) {
+      bagTab = cursor; cursor = BAG_TABS.length;
+    } else {
+      const items = getBagItems(bagTab);
+      const itemIdx = cursor - BAG_TABS.length;
+      if (itemIdx < items.length) {
+        const itemName = items[itemIdx];
+        const msg = useOverworldItem(itemName);
+        if (msg === null) { state = S_PARTY; partyMode = "use"; cursor = 0; }
+        else if (msg) { state = S_DIALOG; setDialog([msg]); }
+      }
+    }
+  }
+  else if (state === S_MAP && (key === "Escape" || key === "Enter" || key === " ")) { state = S_PAUSE; cursor = 5; }
   else if (state === S_MOVES && key === "Escape") {
-    if (pendingMoveLearn) { const { creature, newMove } = pendingMoveLearn; pendingMoveLearn = null; pendingTM = null; setDialog([creature.name + " did not learn " + MOVES[newMove.id].name + "."]); }
-    else { state = S_MENU; cursor = 0; }
+    if (pendingMoveLearn) { const { creature, newMove } = pendingMoveLearn; pendingMoveLearn = null; pendingTM = null; state = S_DIALOG; setDialog([creature.name + " did not learn " + MOVES[newMove.id].name + "."]); }
+    else { state = S_PAUSE; cursor = 0; }
   }
   else if (state === S_STARTER && key === "Escape") state = S_TITLE;
-  else if (state === S_TM && key === "Escape") { pendingTM = null; state = S_BAG; cursor = 0; }
+  else if (state === S_STARTER && (key === "b" || key === "B")) {
+    bagReturnState = S_STARTER;
+    state = S_BAG_CAT; bagTab = 0; cursor = BAG_TABS.length;
+  }
+  else if (state === S_INTRO || state === S_DIALOG) {
+    if (key === "Enter" || key === " ") {
+      if (state === S_INTRO) advanceDialog();
+      else advanceDialog();
+    }
+  }
+  else if (state === S_NAME) {
+    if (key === "Backspace") { nameInput = nameInput.slice(0, -1); }
+    else if (key === "Enter") { confirmName(); }
+    else if (key === "Escape") { state = S_TITLE; }
+    else if (key.length === 1 && key.match(/[a-zA-Z ]/)) {
+      nameInput += key.toUpperCase();
+      if (nameInput.length > 10) nameInput = nameInput.slice(0, 10);
+    }
+  }
+  else if (state === S_TM && key === "Escape") { pendingTM = null; state = S_BAG_CAT; cursor = BAG_TABS.length; }
   else if (state === S_GAMEOVER && key === "Enter") { initGame(); state = S_TITLE; }
 }
 
@@ -567,20 +971,17 @@ function advanceIntro() {
   setDialog([
     "Welcome to the world of Minimon!",
     "I'm Professor Sage. I study the mysterious creatures called Minis.",
-    "But first... what is your name?",
-    "Well then, " + player.name + "! Your adventure begins now!",
-    "Your neighbor Luna has also just received a partner Mini.",
-    "Now, choose your very first Mini wisely!",
-    "It will be your trusted partner on this journey!"
+    "But first... what is your name?"
   ]);
-  pendingStarter = [1, 2, 3]; // Fire, Water, Grass
+  pendingNameInput = true;
+  state = S_DIALOG;
 }
 
 // === GAME INIT ===
 function initGame() {
   player.x = 10; player.y = 10; player.facing = "down"; player.party = [];
   player.money = 3000; player.badges = []; player.storyFlags = {}; player.stepCounter = 0;
-  player.inventory = {[I_POTION]:5,[I_SPHERE]:10,[I_GSPHERE]:0,[I_USPHERE]:0,[I_MSPHERE]:0,[I_FHEAL]:1,[I_REVIVE]:0,[I_XATK]:0,[I_XDEF]:0};
+  player.inventory = {[I_POTION]:3,[I_SPHERE]:3,[I_GSPHERE]:0,[I_USPHERE]:0,[I_MSPHERE]:0,[I_FHEAL]:1,[I_REVIVE]:0,[I_XATK]:0,[I_XDEF]:0,[I_REPEL]:1};
   currentMap = MAP_CREATORS[0]();
 }
 
@@ -589,15 +990,12 @@ canvas.addEventListener("wheel", e => { e.preventDefault(); if (scrollCD <= 0) {
 canvas.addEventListener("mousedown", e => { e.preventDefault(); const r = canvas.getBoundingClientRect(); const x = (e.clientX - r.left) / (r.width / SCREEN_W); const y = (e.clientY - r.top) / (r.height / SCREEN_H); handleClick(e.button, x, y); }, { passive: false });
 canvas.addEventListener("contextmenu", e => e.preventDefault());
 
-// Touch support
 let touchStart = null;
 canvas.addEventListener("touchstart", e => { e.preventDefault(); const t = e.touches[0]; const r = canvas.getBoundingClientRect(); touchStart = { x: (t.clientX - r.left) / (r.width / SCREEN_W), y: (t.clientY - r.top) / (r.height / SCREEN_H), time: Date.now() }; }, { passive: false });
 canvas.addEventListener("touchend", e => { e.preventDefault(); if (!touchStart) return; const t = e.changedTouches[0]; const r = canvas.getBoundingClientRect(); const x = (t.clientX - r.left) / (r.width / SCREEN_W); const y = (t.clientY - r.top) / (r.height / SCREEN_H); const dx = x - touchStart.x, dy = y - touchStart.y; const dt = Date.now() - touchStart.time; if (Math.abs(dx) < 10 && Math.abs(dy) < 10 && dt < 300) handleClick(1, x, y); else if (dt < 300) { const dir = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? "right" : "left") : (dy > 0 ? "down" : "up"); handleScroll(dir === "up" || dir === "left" ? -1 : 1); } touchStart = null; }, { passive: false });
 
-// Keyboard
 document.addEventListener("keydown", e => { handleKeyDown(e.key); });
-
-// R1 side button simulation (right-click = back)
+document.addEventListener("keyup", e => { if (e.key === "Shift") isSprinting = false; });
 document.addEventListener("mousedown", e => { if (e.button === 2) handleClick(3, 0, 0); });
 
 // === GAME LOOP ===
@@ -610,19 +1008,54 @@ function gameLoop(timestamp) {
   lastTime = timestamp; time += dt; scrollCD = Math.max(0, scrollCD - dt);
   player.playTime += dt;
 
+  // Update effects
+  R.updateEffects(dt);
+
+  // Auto-save
+  if (state === S_OW) {
+    autoSaveTimer += dt;
+    if (autoSaveTimer >= AUTO_SAVE_INTERVAL) {
+      autoSaveTimer = 0;
+      saveGame();
+    }
+  }
+
+  if (state === S_ENCOUNTER) {
+    encounterTimer += dt;
+    if (encounterTimer >= 0.7) { finishBattleTransition(); }
+  }
+
   // Render
   R.clear();
-  if (state === S_TITLE || state === S_INTRO) R.startScreen(time);
+  if (state === S_TITLE) R.startScreen(time);
+  else if (state === S_NAME) renderNameInput();
   else if (state === S_STARTER) renderStarter();
-  else if (state === S_OW || state === S_DIALOG) renderOverworld();
+  else if (state === S_OW || state === S_DIALOG || state === S_INTRO) renderOverworld();
+  else if (state === S_ENCOUNTER) {
+    renderOverworld();
+    if (encounterTimer < 0.35) {
+      const flash = Math.floor(encounterTimer * 14) % 2;
+      if (flash) { ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, SCREEN_W, SCREEN_H); }
+    } else {
+      const wipeProg = Math.min(1, (encounterTimer - 0.35) / 0.35);
+      const barH = Math.floor(SCREEN_H / 2 * wipeProg);
+      ctx.fillStyle = "#000000";
+      ctx.fillRect(0, 0, SCREEN_W, barH);
+      ctx.fillRect(0, SCREEN_H - barH, SCREEN_W, barH);
+    }
+  }
   else if (state === S_BATTLE) renderBattle();
-  else if (state === S_MENU) renderMenu();
+  else if (state === S_PAUSE) R.pauseMenu(player, cursor, time);
+  else if (state === S_PARTY && partyMode === "use") R.useItemTargetMenu(player.party, pendingUseItem, cursor, time);
   else if (state === S_PARTY) R.partyMenu(player.party, cursor);
-  else if (state === S_BAG) R.inventoryMenu(player.inventory, cursor);
+  else if (state === S_PARTY_DETAIL) R.partyDetailMenu(player.party, partyDetailIdx, time, partyMode);
+  else if (state === S_BAG_CAT) R.bagCatMenu(player.inventory, bagTab, cursor, time);
+  else if (state === S_MAP) R.worldMapScreen(player, currentMap ? currentMap.name : "", cursor, time);
   else if (state === S_MOVES && pendingMoveLearn) R.moveMenu(pendingMoveLearn.creature.moves, cursor, pendingMoveLearn.creature, MOVES[pendingMoveLearn.newMove.id]?.name);
   else if (state === S_SHOP) R.shopMenu(SHOP_ITEMS, shopCursor, player.money);
   else if (state === S_EVOLUTION && pendingEvolution) R.evolveScreen(pendingEvolution[0], pendingEvolution[1], time);
   else if (state === S_TM && pendingTM) R.tmSelectMenu(pendingTM.compatible, cursor, MOVES[TM_MOVES[pendingTM.itemName]]?.name, pendingTM.itemName);
+  else if (state === "pokedex") renderPokedex();
   else if (state === S_GAMEOVER) {
     R.rect(0, 0, SCREEN_W, SCREEN_H, COL_BG);
     R.text(240, 200, "GAME OVER", COL_RED, 28, true);
@@ -633,8 +1066,34 @@ function gameLoop(timestamp) {
   requestAnimationFrame(gameLoop);
 }
 
+function renderNameInput() {
+  ctx.fillStyle = rgb(COL_BG); ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
+  R.text(240, 60, "Professor Sage", COL_YELLOW, 16, true);
+  R.text(240, 90, "What is your name?", COL_WHITE, 14, true);
+  const display = nameInput + (time % 1 < 0.5 ? "_" : " ");
+  R.rect(120, 120, 240, 40, COL_MENUBG);
+  R.rect(120, 120, 240, 40, COL_LGRAY, false, true);
+  R.text(240, 145, display, COL_WHITE, 20, true);
+  const cols = 6, rows = 5, cellW = 60, cellH = 36;
+  const startX = (SCREEN_W - cols * cellW) / 2;
+  const startY = 185;
+  for (let i = 0; i < NAME_CHARS.length; i++) {
+    const c = i % cols, r = Math.floor(i / cols);
+    const x = startX + c * cellW, y = startY + r * cellH;
+    const selected = i === nameCursor;
+    if (selected) R.rect(x, y, cellW - 4, cellH - 4, COL_SELECT, 0.4);
+    R.text(x + cellW / 2, y + cellH / 2 + 4, NAME_CHARS[i], selected ? COL_YELLOW : COL_WHITE, 14, true);
+  }
+  const btnY = startY + rows * cellH + 10;
+  R.text(120, btnY + 12, "DEL", nameCursor === 26 ? COL_YELLOW : COL_LGRAY, 14, true);
+  R.text(240, btnY + 12, "OK", nameCursor === 27 ? COL_YELLOW : COL_LGRAY, 14, true);
+  R.text(360, btnY + 12, "SPACE", nameCursor === 28 ? COL_YELLOW : COL_LGRAY, 14, true);
+  R.text(240, 460, "Scroll = Move | Click = Select", COL_GRAY, 11, true);
+}
+
 function renderStarter() {
   ctx.fillStyle = rgb(COL_BG); ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
+  R.pauseButton(time);
   R.text(240, 30, "Professor Sage", COL_YELLOW, 16, true);
   R.text(240, 50, "Choose your first Mini partner!", COL_WHITE, 14, true);
   const choices = pendingStarter;
@@ -647,7 +1106,6 @@ function renderStarter() {
     R.text(x + 75, 198, t.types.join("/"), TYPE_COLORS[t.types[0]] || COL_GRAY, 11, true);
     R.text(x + 75, 216, "HP:" + t.baseStats[0] + " ATK:" + t.baseStats[1], COL_GRAY, 10, true);
     R.text(x + 75, 230, "DEF:" + t.baseStats[2] + " SPD:" + t.baseStats[3], COL_GRAY, 10, true);
-    // Show starting moves
     const startMoves = t.moves.filter(([lv]) => lv <= 5);
     R.text(x + 75, 252, "Moves:", COL_LGRAY, 10, true);
     for (let j = 0; j < startMoves.length && j < 3; j++) {
@@ -666,10 +1124,12 @@ function renderOverworld() {
   if (currentMap) {
     R.townMap(currentMap, player.x, player.y, time);
     R.hud(player, currentMap.name);
+    R.pauseButton(time);
     const info = getInteractableInfo();
     if (info) R.interactBubble(info.x * TILE + TILE / 2, info.y * TILE - 12, time);
     R.dpad(DPAD_CX, DPAD_CY, DPAD_R, DPAD_BS);
-    if (state === S_DIALOG) R.dialogBox(dialogCurrent, dialogSpeaker);
+    if (state === S_DIALOG || state === S_INTRO) R.dialogBox(dialogCurrent, dialogSpeaker);
+    R.drawMapTransition();
   }
 }
 
@@ -680,6 +1140,7 @@ function renderBattle() {
     R.box(10, 310, 460, 80);
     const lines = R.wrapText(battleState.message, 440);
     for (let i = 0; i < Math.min(lines.length, 3); i++) R.text(20, 328 + i * 18, lines[i], COL_WHITE, 14);
+    R.text(420, 472, "Click/Scroll", COL_GRAY, 10, true);
   }
   if (battlePhase === "menu") {
     R.box(10, 400, 460, 70);
@@ -691,31 +1152,74 @@ function renderBattle() {
     }
     const cx = 20 + (cursor % 2) * 230, cy = 413 + Math.floor(cursor / 2) * 28;
     R.menuCursor(cx, cy, time);
+    // Enemy info
+    if (battleState.enemy) {
+      const eHpPct = Math.ceil(battleState.enemy.hp/Math.max(1,battleState.enemy.maxHP)*100);
+      R.text(350, 445, battleState.enemy.name + " HP:" + eHpPct + "%", COL_GRAY, 10);
+      if (battleState.enemy.status) {
+        const sTxt = {burn:"BRN",poison:"PSN",paralyze:"PAR",freeze:"FRZ",sleep:"SLP"}[battleState.enemy.status]||"";
+        if (sTxt) R.text(440, 445, sTxt, COL_RED, 10, true);
+      }
+    }
+    // Player info
+    if (battleState.player) {
+      R.text(20, 445, battleState.player.name + " HP:" + battleState.player.hp + "/" + battleState.player.maxHP, COL_LGRAY, 10);
+      if (battleState.player.status) {
+        const sTxt2 = {burn:"BRN",poison:"PSN",paralyze:"PAR",freeze:"FRZ",sleep:"SLP"}[battleState.player.status]||"";
+        if (sTxt2) R.text(200, 445, sTxt2, COL_RED, 10);
+      }
+    }
   } else if (battlePhase === "moves") R.moveMenu(battleState.player.moves, cursor, battleState.player);
   else if (battlePhase === "party") R.partyMenu(player.party, cursor);
   else if (battlePhase === "bag") {
-    const items = Object.entries(player.inventory).filter(([k, v]) => v > 0 && [I_POTION,I_SPOTION,I_HPOTION,I_FHEAL,I_SPHERE,I_GSPHERE,I_USPHERE,I_MSPHERE,I_REVIVE,I_FREVIVE].includes(k));
+    const items = Object.entries(player.inventory).filter(([k, v]) => v > 0 && [I_POTION,I_SPOTION,I_HPOTION,I_FHEAL,I_SPHERE,I_GSPHERE,I_USPHERE,I_MSPHERE,I_REVIVE,I_FREVIVE,I_XATK,I_XDEF].includes(k));
     R.box(10, 30, 460, 350); R.text(240, 48, "BAG", COL_YELLOW, 14, true);
     for (let i = 0; i < items.length; i++) {
       const [item, count] = items[i]; const y = 65 + i * 32;
       if (i === cursor) R.rect(16, y, 448, 28, COL_SELECT, 0.3);
       R.text(24, y + 18, item + " x" + count, i === cursor ? COL_WHITE : COL_LGRAY, 14);
     }
+    if (!items.length) R.text(240, 200, "No items!", COL_GRAY, 14, true);
   }
 }
 
-function renderMenu() {
-  R.box(100, 50, 280, 380); R.text(240, 68, "MENU", COL_YELLOW, 14, true);
-  const opts = ["Party","Bag","Save","Pokedex","Quit"];
-  for (let i = 0; i < opts.length; i++) {
-    const y = 100 + i * 50;
-    if (i === cursor) { R.rect(110, y - 5, 260, 40, COL_SELECT, 0.3); R.menuCursor(115, y + 3, time); }
-    R.text(130, y + 15, opts[i], i === cursor ? COL_YELLOW : COL_WHITE, 14);
+function renderPokedex() {
+  R.box(10, 10, 460, 460);
+  R.text(240, 30, "MINIMON POKEDEX", COL_YELLOW, 16, true);
+  const entries = Object.entries(pokedex);
+  const seen = entries.filter(([,v]) => v.seen).length;
+  const caught = entries.filter(([,v]) => v.caught).length;
+  const total = Object.keys(CREATURES).length;
+  R.text(240, 52, "Seen: " + seen + "/" + total + "  Caught: " + caught + "/" + total, COL_LGRAY, 12, true);
+  // Progress bar
+  const barW = 400, barH = 8, barX = 40, barY = 60;
+  R.rect(barX, barY, barW, barH, COL_GRAY);
+  const fillW = Math.floor(barW * caught / Math.max(1, total));
+  if (fillW > 0) R.rect(barX, barY, fillW, barH, COL_GREEN);
+  const startY = 76;
+  for (let i = 0; i < Math.min(entries.length, 14); i++) {
+    const idx = cursor + i;
+    if (idx >= entries.length) break;
+    const [dex, data] = entries[idx];
+    const t = CREATURES[dex];
+    if (!t) continue;
+    const y = startY + i * 26;
+    if (idx === cursor) R.rect(16, y - 2, 448, 24, COL_SELECT, 0.3);
+    const num = String(dex).padStart(3, "0");
+    if (data.seen) {
+      // Draw mini sprite
+      drawCreature(R.ctx, 20, y - 2, 20, parseInt(dex), false);
+      R.text(44, y + 14, "#" + num + " " + t.name, COL_WHITE, 12);
+      R.text(200, y + 14, t.types.join("/"), TYPE_COLORS[t.types[0]] || COL_GRAY, 11);
+      const total2 = t.baseStats.reduce((a,b)=>a+b,0);
+      R.text(330, y + 14, "BST:" + total2, COL_GRAY, 10);
+      R.text(420, y + 14, data.caught ? "Caught" : "Seen", data.caught ? COL_GREEN : COL_YELLOW, 10, true);
+    } else {
+      R.text(44, y + 14, "#" + num + " ???", COL_GRAY, 12);
+    }
   }
-  if (player.party.length) {
-    const c = player.party[0];
-    R.text(240, 370, c.name + " Lv." + c.level + " HP:" + c.hp + "/" + c.maxHP, COL_GRAY, 11, true);
-  }
+  if (entries.length > 14) R.text(240, 440, "Scroll to browse (" + (cursor+1) + "-" + Math.min(cursor+14, entries.length) + " of " + entries.length + ")", COL_GRAY, 10, true);
+  R.text(240, 458, "Click/Right-click to go back", COL_GRAY, 10, true);
 }
 
 requestAnimationFrame(gameLoop);
