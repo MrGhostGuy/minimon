@@ -1201,6 +1201,31 @@ evil_boss:[[220,220,230],[80,60,100],[40,20,60],[10,5,15]],
 const PLAYER_SPRITE=[".3333333...","322222223..",".32214523..",".32222223..","..332233...",".32222223..","3222222223.",".32222223..","..322223...","..32..23...","..32..23...","..3.....3.."];
 const PLAYER_PALETTE=[[255,255,255],[100,180,240],[50,100,180],[20,40,80]];
 
+// ===== ENHANCED CREATURE SPRITE FRAMEWORK =====
+
+// Expanded palette for more detailed coloring
+const ENHANCED_PALETTE = {
+  base: [220,220,220],  // More neutral base
+  dark: [60,60,60],     // Darker shadows
+  light: [240,240,240], // Brighter highlights
+  accent: [255,255,255], // Brighter accents
+  // Type-based base colors (more Pokemon-like)
+  typeColors: {
+    Normal: [168,168,120],
+    Fire: [240,128,48],
+    Water: [104,144,240],
+    Grass: [120,200,80],
+    Electric: [248,208,48],
+    Ice: [152,216,216],
+    Dark: [112,88,72],
+    Spirit: [160,96,192],
+    Dragon: [112,56,248],
+    Earth: [224,192,104],
+    Wind: [168,216,240],
+    Light: [248,248,144]
+  }
+};
+
 // ===== DRAWING FUNCTIONS =====
 
 function drawGrid(ctx,x,y,size,grid,palette){
@@ -1228,7 +1253,6 @@ function drawCreature(ctx,x,y,size,dex,isEnemy){
   if(!c)return;
   const tc=TYPE_COLORS[c.types[0]]||[200,200,200];
   const ac=CREATURE_ACCENT[dex]||tc;
-  // Build palette: 0=empty,1=highlight,2=mid,3=shadow,4=eye_white,5=pupil,6=accent
   const palette=[
     [0,0,0],
     [Math.min(255,tc[0]+80),Math.min(255,tc[1]+80),Math.min(255,tc[2]+80)],
@@ -1241,37 +1265,59 @@ function drawCreature(ctx,x,y,size,dex,isEnemy){
   drawGrid(ctx,x,y,size,grid,palette);
 }
 
-// Draw creature with legendary glow aura
+// Draw creature with legendary glow aura and special effects
 function drawLegendaryCreature(ctx,x,y,size,dex,t){
   const grid=CREATURE_SPRITES[dex];
   if(!grid)return;
-  // Glow aura effect
-  const glowSize=size*1.3;
-  const pulse=0.3+Math.sin(t*3)*0.15;
-  ctx.save();
-  ctx.globalAlpha=pulse;
+  const c=CREATURES[dex];
   const ac=CREATURE_ACCENT[dex]||[255,255,100];
-  ctx.fillStyle=rgb(ac);
-  ctx.beginPath();
-  ctx.ellipse(x+size/2,y+size/2,glowSize/2,glowSize/2*0.8,0,0,Math.PI*2);
-  ctx.fill();
-  ctx.globalAlpha=1;
-  // Sparkle particles around legendary
-  for(let i=0;i<6;i++){
-    const angle=t*2+i*Math.PI/3;
-    const dist=size*0.5+Math.sin(t*4+i)*5;
+  // Multiple layered glow auras
+  const glowLayers=[
+    {size:1.5,alpha:0.15},
+    {size:1.3,alpha:0.25},
+    {size:1.15,alpha:0.35}
+  ];
+  ctx.save();
+  for(const layer of glowLayers){
+    const gs=size*layer.size;
+    const pulse=0.3+Math.sin(t*3)*0.15;
+    ctx.globalAlpha=pulse*layer.alpha;
+    ctx.fillStyle=rgb(ac);
+    ctx.beginPath();
+    ctx.ellipse(x+size/2,y+size/2,gs/2,gs/2*0.8,0,0,Math.PI*2);
+    ctx.fill();
+  }
+  // Rotating sparkle particles around legendary
+  for(let i=0;i<8;i++){
+    const angle=t*1.5+i*Math.PI/4;
+    const dist=size*0.6+Math.sin(t*4+i)*6;
     const sx=x+size/2+Math.cos(angle)*dist;
     const sy=y+size/2+Math.sin(angle)*dist*0.7;
-    const sparkle=Math.sin(t*8+i*2);
-    if(sparkle>0.3){
-      ctx.globalAlpha=sparkle*0.8;
+    const sparkle=Math.sin(t*8+i*1.5+angle);
+    if(sparkle>0.2){
+      ctx.globalAlpha=sparkle*0.9;
       ctx.fillStyle=rgb([255,255,200]);
-      ctx.fillRect(sx-1,sy-1,3,3);
+      const s=2+sparkle*3;
+      ctx.fillRect(sx-s/2,sy-s/2,s,s);
+      // Cross sparkle
+      ctx.fillRect(sx-3,sy-1,6,2);
+      ctx.fillRect(sx-1,sy-3,2,6);
     }
+  }
+  // Energy rings
+  for(let r=0;r<3;r++){
+    const ringPulse=0.4+Math.sin(t*2+r)*0.3;
+    ctx.globalAlpha=ringPulse*0.2;
+    ctx.strokeStyle=rgb(ac);
+    ctx.lineWidth=2;
+    ctx.beginPath();
+    const ringSize=size*0.8+r*8;
+    ctx.ellipse(x+size/2,y+size/2,ringSize/2,ringSize/2*0.6,t*0.5,0,Math.PI*2);
+    ctx.stroke();
   }
   ctx.globalAlpha=1;
   ctx.restore();
-  // Draw the creature on top
+  // Draw the creature on top with enhanced palette
   drawCreature(ctx,x,y,size,dex,true);
 }
 

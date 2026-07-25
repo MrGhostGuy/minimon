@@ -46,6 +46,9 @@ let partyDetailIdx = 0;
 let partyMode = "select"; // "select" or "swap"
 let pendingUseItem = null; // item being used from overworld bag
 let pauseReturnState = S_OW;
+let repelUsedInStarter = false; // Easter egg flag
+let starterLegendaryOptions = [75, 76, 77]; // Default legendary starters
+let bagReturnState = S_OW; // Track where to return from bag
 function pokedexSee(dex) { if (!pokedex[dex]) pokedex[dex] = { seen: true, caught: false }; else pokedex[dex].seen = true; }
 function pokedexCatch(dex) { pokedexSee(dex); if (pokedex[dex]) pokedex[dex].caught = true; }
 
@@ -108,6 +111,7 @@ const SHOP_ITEMS = [
   I_SPHERE,I_GSPHERE,I_USPHERE,
   I_REVIVE,
   I_XATK,I_XDEF,
+  I_REPEL,
   I_TM_EMBER,I_TM_WGUN,I_TM_VWHIP,I_TM_TSHOCK,I_TM_ISHARD,I_TM_BITE,I_TM_SBALL,I_TM_DCLAW,I_TMSEDGE,
   I_TM_ASLASH,I_TM_DGLEAM,I_TM_FLAMET,I_TM_HYDROP,I_TM_SOLBEAM,I_TM_THUND,I_TM_BLIZZ,I_TM_EQUAKE,
   I_TM_CRUNCH,I_TM_RECOVER,I_TM_SDANCE
@@ -139,6 +143,14 @@ function getBagItems(tabIdx) {
   return tab.items.filter(name => (player.inventory[name] || 0) > 0);
 }
 function useOverworldItem(itemName) {
+  // Easter egg: Repel during starter selection transforms starters into legendaries
+  if (itemName === I_REPEL && state === S_STARTER) {
+    repelUsedInStarter = true;
+    pendingStarter = starterLegendaryOptions;
+    removeItem(itemName);
+    state = S_STARTER; cursor = 0;
+    return null; // will re-render starter with legendary options
+  }
   if ([I_POTION,I_SPOTION,I_HPOTION].includes(itemName)) {
     if (!player.party.length) return "No Minis to heal!";
     const amt = { [I_POTION]:20, [I_SPOTION]:60, [I_HPOTION]:200 }[itemName];
@@ -555,6 +567,7 @@ function handleMoveLearn() {
 
 function confirmName() {
   player.name = nameInput || "Hero";
+  repelUsedInStarter = false;
   setDialog([
     "Well then, " + player.name + "! Your adventure begins now!",
     "Your neighbor Luna has also just received a partner Mini.",
@@ -566,24 +579,35 @@ function confirmName() {
 }
 
 function chooseStarter() {
-  const dex = pendingStarter[cursor];
-  const starter = new BattleCreature(dex, 5);
+  let dex = pendingStarter[cursor];
+  let starterName = CREATURES[dex] ? CREATURES[dex].name : "Mini";
+  let starterLevel = repelUsedInStarter ? 10 : 5;
+  const starter = new BattleCreature(dex, starterLevel);
   addCreature(starter);
   player.starterChoice = dex; player.storyFlags[FLAG_STARTER] = true;
   const starterAdvantage = { 1: 3, 2: 1, 3: 2 };
   player.rivalStarter = starterAdvantage[dex] || pendingStarter[(cursor + 1) % 3];
   pendingStarter = null;
-  addItem(I_SPHERE, 10);
-  addItem(I_POTION, 5);
+  addItem(I_SPHERE, 5);
+  addItem(I_POTION, 2);
   addItem(I_FHEAL, 1);
-  setDialog([
-    "You chose " + starter.name + "!",
-    "Professor Sage gave you 10 Soul Spheres and 5 Potions!",
-    "You also got 1 Full Heal for emergencies!",
-    "Now go out there and catch some Minis!",
-    "Remember - weaken them first, then throw a Sphere!",
-    "Luna is waiting for you on Route 1..."
-  ]);
+  let dialogLines = [];
+  if (repelUsedInStarter) {
+    dialogLines.push("The Repel transformed the Minis into legendary beings!");
+    dialogLines.push("You chose " + starterName + " (Legendary)!");
+    dialogLines.push("Professor Sage gave you 5 Soul Spheres and 2 Potions!");
+    dialogLines.push("You also got 1 Full Heal for emergencies!");
+    dialogLines.push("This legendary Mini will grow stronger than any normal one!");
+    dialogLines.push("Luna is waiting for you on Route 1...");
+  } else {
+    dialogLines.push("You chose " + starterName + "!");
+    dialogLines.push("Professor Sage gave you 5 Soul Spheres and 2 Potions!");
+    dialogLines.push("You also got 1 Full Heal for emergencies!");
+    dialogLines.push("Now go out there and catch some Minis!");
+    dialogLines.push("Remember - weaken them first, then throw a Sphere!");
+    dialogLines.push("Luna is waiting for you on Route 1...");
+  }
+  setDialog(dialogLines);
   state = S_DIALOG;
 }
 
@@ -621,7 +645,7 @@ function selectPauseMenu() {
   const opts = ["Party","Bag","Pokedex","Save","Load","Map","Close"];
   const choice = opts[cursor];
   if (choice === "Party") { state = S_PARTY; cursor = 0; partyMode = "select"; }
-  else if (choice === "Bag") { state = S_BAG_CAT; bagTab = 0; cursor = BAG_TABS.length; }
+  else if (choice === "Bag") { bagReturnState = S_PAUSE; state = S_BAG_CAT; bagTab = 0; cursor = BAG_TABS.length; }
   else if (choice === "Save") { state = S_DIALOG; if (saveGame()) setDialog(["Game saved!"]); else setDialog(["Save failed!"]); }
   else if (choice === "Load") { if (loadGame()) { state = S_DIALOG; setDialog(["Game loaded!"]); } else { state = S_DIALOG; setDialog(["No save found!"]); } }
   else if (choice === "Pokedex") { state = "pokedex"; cursor = 0; }
@@ -714,7 +738,7 @@ function handleScroll(dir) {
 function handleClick(button, mx, my) {
   if (state === S_ENCOUNTER) return;
   if (state === S_TITLE) {
-    if (button === 3 && tryHasSave()) { if (loadGame()) state = S_OW; }
+    if ((button === 2 || button === 3) && tryHasSave()) { if (loadGame()) state = S_OW; }
     else advanceIntro();
   }
   else if (state === S_INTRO) advanceDialog();
@@ -803,16 +827,18 @@ function handleClick(button, mx, my) {
   }
   else if (state === S_BAG_CAT && button === 1) {
     if (cursor < BAG_TABS.length) {
-      // Click on a tab
-      bagTab = cursor; cursor = BAG_TABS.length; // jump to first item
+      bagTab = cursor; cursor = BAG_TABS.length;
     } else {
-      // Click on an item
       const items = getBagItems(bagTab);
       const itemIdx = cursor - BAG_TABS.length;
       if (itemIdx < items.length) {
         const itemName = items[itemIdx];
         const msg = useOverworldItem(itemName);
         if (msg === null) {
+          // Check if we're in starter selection (easter egg)
+          if (state === S_STARTER) {
+            return; // Repel was used - already handled in useOverworldItem
+          }
           state = S_PARTY; partyMode = "use"; cursor = 0;
         } else if (msg) {
           state = S_DIALOG; setDialog([msg]);
@@ -820,7 +846,7 @@ function handleClick(button, mx, my) {
       }
     }
   }
-  else if (state === S_BAG_CAT && button === 3) { state = S_PAUSE; cursor = 1; }
+  else if (state === S_BAG_CAT && button === 3) { state = bagReturnState; cursor = bagReturnState === S_STARTER ? 0 : BAG_TABS.length; }
   else if (state === S_MAP && button === 1) { state = S_PAUSE; cursor = 5; }
   else if (state === S_MAP && button === 3) { state = S_PAUSE; cursor = 5; }
   else if (state === S_MOVES && button === 1) {
@@ -842,7 +868,14 @@ function handleClick(button, mx, my) {
     if (button === 1) buyItem(); else if (button === 3) state = S_OW;
   }
   else if (state === S_EVOLUTION) advanceDialog();
-  else if (state === S_STARTER && button === 1) chooseStarter();
+  else if (state === S_STARTER && button === 1) {
+    if (mx >= 456 && mx <= 476 && my >= 2 && my <= 20) {
+      bagReturnState = S_STARTER;
+      state = S_BAG_CAT; bagTab = 0; cursor = BAG_TABS.length;
+      return;
+    }
+    chooseStarter();
+  }
   else if (state === S_TM && button === 1) selectTMCreature();
   else if (state === S_TM && button === 3) { pendingTM = null; state = S_BAG_CAT; cursor = BAG_TABS.length; }
   else if (state === S_GAMEOVER) { initGame(); state = S_TITLE; }
@@ -851,6 +884,12 @@ function handleClick(button, mx, my) {
 function handleKeyDown(key) {
   if (state === S_ENCOUNTER) return;
   if (key === "Shift") isSprinting = true;
+  if (state === S_TITLE) {
+    if (key === "Enter" || key === " " || key === "Escape") {
+      if (key === "Escape" && tryHasSave()) { if (loadGame()) state = S_OW; }
+      else advanceIntro();
+    }
+  }
   if (state === S_OW) {
     if (key === "m" || key === "M" || key === "Escape") { state = S_PAUSE; cursor = 0; }
     else if (key === "ArrowUp" || key === "w") movePlayer(0, -1, "up");
@@ -905,6 +944,10 @@ function handleKeyDown(key) {
     else { state = S_PAUSE; cursor = 0; }
   }
   else if (state === S_STARTER && key === "Escape") state = S_TITLE;
+  else if (state === S_STARTER && (key === "b" || key === "B")) {
+    bagReturnState = S_STARTER;
+    state = S_BAG_CAT; bagTab = 0; cursor = BAG_TABS.length;
+  }
   else if (state === S_INTRO || state === S_DIALOG) {
     if (key === "Enter" || key === " ") {
       if (state === S_INTRO) advanceDialog();
@@ -938,7 +981,7 @@ function advanceIntro() {
 function initGame() {
   player.x = 10; player.y = 10; player.facing = "down"; player.party = [];
   player.money = 3000; player.badges = []; player.storyFlags = {}; player.stepCounter = 0;
-  player.inventory = {[I_POTION]:5,[I_SPHERE]:10,[I_GSPHERE]:0,[I_USPHERE]:0,[I_MSPHERE]:0,[I_FHEAL]:1,[I_REVIVE]:0,[I_XATK]:0,[I_XDEF]:0};
+  player.inventory = {[I_POTION]:3,[I_SPHERE]:3,[I_GSPHERE]:0,[I_USPHERE]:0,[I_MSPHERE]:0,[I_FHEAL]:1,[I_REVIVE]:0,[I_XATK]:0,[I_XDEF]:0,[I_REPEL]:1};
   currentMap = MAP_CREATORS[0]();
 }
 
@@ -1050,6 +1093,7 @@ function renderNameInput() {
 
 function renderStarter() {
   ctx.fillStyle = rgb(COL_BG); ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
+  R.pauseButton(time);
   R.text(240, 30, "Professor Sage", COL_YELLOW, 16, true);
   R.text(240, 50, "Choose your first Mini partner!", COL_WHITE, 14, true);
   const choices = pendingStarter;
