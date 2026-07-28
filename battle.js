@@ -228,6 +228,7 @@ class BattleState {
       const hit = moveData.accuracy === 0 || moveData.id === "swift" ? true : Math.random() * 100 <= moveData.accuracy;
       if (!hit) { log.push("The attack missed!"); continue; }
       const [damage, effect] = calcDamage(attacker, defender, moveData);
+      this._lastEffect = effect;
       if (moveData.category !== STATUS) {
         defender.takeDamage(damage);
         if (moveData.effect === "multi_hit") {

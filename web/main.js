@@ -383,6 +383,8 @@ function finishBattleTransition() {
     state = S_BATTLE; battlePhase = "menu"; cursor = 0;
     battleState.message = "A legendary " + wild.name + " appeared!";
     battleState.isLegendary = true;
+    // Trigger dramatic legendary entrance
+    R.triggerLegendaryIntro();
   }
 }
 function startTrainerBattle(npc) { beginBattleTransition("trainer", npc); }
@@ -417,8 +419,13 @@ function useBattleMove() {
   // Trigger effects based on result
   if (moveData && moveData.category !== STATUS) {
     const eff = typeEff(moveData.type, e.types);
-    R.triggerAttackFX(moveData.type, eX, eY, false, eff);
+    const lastEffect = battleState.messageQueue.length > 0 ? battleState.messageQueue[battleState.messageQueue.length - 1] : "";
+    const isCrit = lastEffect.includes("Critical") || (battleState._lastEffect && battleState._lastEffect.includes("critical"));
+    R.triggerAttackFX(moveData.type, eX, eY, isCrit, eff);
     R.addDamageNum(eX, eY - 20, "", eff > 1 ? "super_effective" : (eff < 1 ? "not_effective" : "normal"));
+    if (isCrit) { R.triggerFreeze(5); R.triggerCriticalHitText(); }
+    if (eff > 1) { R.triggerCombo(); }
+    else { R.comboCount = 0; }
   }
   if (!battleState.enemy.isAlive()) {
     R.triggerShake(8, 0.3);
@@ -504,19 +511,23 @@ function useBattleItem() {
     if (removeItem(name)) {
       battleState.addMsg("You threw a " + sphereName + "!");
       const [caught, shakes] = attemptCatch(battleState.enemy, mult);
-      R.triggerFlash([255, 255, 100], 0.4);
-      if (caught) {
-        if (player.party.length >= 6) {
-          battleState.addMsg("Gotcha! But your team is full! " + battleState.enemy.name + " got away!");
-          if (!battleState.nextEnemy()) { battleState.playerWon = true; battleState.battleOver = true; }
-        } else {
-          battleState.addMsg("Gotcha! " + battleState.enemy.name + " was caught!");
-          const c = new BattleCreature(battleState.enemy.dex, battleState.enemy.level);
-          pokedexCatch(battleState.enemy.dex);
-          addCreature(c);
-          if (!battleState.nextEnemy()) { battleState.playerWon = true; battleState.battleOver = true; }
-        }
-      } else battleState.addMsg("Oh no! It broke free!");
+      // Trigger capture shake animation
+      R.triggerCaptureShake(shakes, function() {
+        R.triggerFlash([255, 255, 100], 0.4);
+        if (caught) {
+          R.triggerConfetti();
+          if (player.party.length >= 6) {
+            battleState.addMsg("Gotcha! But your team is full! " + battleState.enemy.name + " got away!");
+            if (!battleState.nextEnemy()) { battleState.playerWon = true; battleState.battleOver = true; }
+          } else {
+            battleState.addMsg("Gotcha! " + battleState.enemy.name + " was caught!");
+            const c = new BattleCreature(battleState.enemy.dex, battleState.enemy.level);
+            pokedexCatch(battleState.enemy.dex);
+            addCreature(c);
+            if (!battleState.nextEnemy()) { battleState.playerWon = true; battleState.battleOver = true; }
+          }
+        } else battleState.addMsg("Oh no! It broke free!");
+      });
     }
   } else if ([I_REVIVE,I_FREVIVE].includes(name)) {
     const fainted = player.party.filter(c => !c.isAlive() && c !== battleState.player);
@@ -553,6 +564,8 @@ function checkEvolution() {
     if (c.canEvolve()) {
       const [od, nd] = c.evolve();
       pendingEvolution = [od, nd];
+      R.triggerConfetti();
+      R.triggerLevelUp(240, 240);
       setDialog([CREATURES[od].name + " is evolving!", CREATURES[od].name + " evolved into " + CREATURES[nd].name + "!"]);
       state = S_EVOLUTION; return;
     }
